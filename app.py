@@ -38,7 +38,20 @@ df = load_data()
 st.subheader("Detailed Transactions by Employee")
 st.dataframe(df)
 
+# Summary by Employee
+st.subheader("Summary by Employee")
+employee_summary = df.groupby(['EmployeeID', 'EmployeeName', 'BranchName'])[['Expense', 'Revenue', 'Salary']].sum()
+st.table(employee_summary.style.format({
+    'Expense': '${:,.2f}',
+    'Revenue': '${:,.2f}',
+    'Salary': '${:,.2f}'
+}))
+
 # Summary by Branch
 st.subheader("Summary by Branch")
 branch_summary = df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
-st.table(branch_summary)
+st.table(branch_summary.style.format({
+    'Expense': '${:,.2f}',
+    'Revenue': '${:,.2f}',
+    'Salary': '${:,.2f}'
+}))
