@@ -14,32 +14,36 @@ def load_data():
     # LEFT JOIN: Include all employees even if they don't have transactions
     df = pd.merge(emp_branch, transactions, on='EmployeeID', how='left')
 
-    # Parse 'Date' only if present
+    # Parse 'Date' safely
     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    # Pivot: Sum Amounts by Type (Revenue, Expense, Salary)
+    # Pivot table for transaction types
     pivot_df = df.pivot_table(
-        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
+        index=['EmployeeID', 'EmployeeName', 'BranchID', 'BranchName', 'Year', 'Month'],
         columns='Type',
         values='Amount',
         aggfunc='sum',
         fill_value=0
     ).reset_index()
 
-    return pivot_df
+    return pivot_df, branches
 
 # Streamlit UI
 st.title("Company Employee Dashboard with Transactions")
 
-df = load_data()
+df, branches = load_data()
 
-# Detailed table
+# Show all employee-level transactions
 st.subheader("Detailed Transactions by Employee")
 st.dataframe(df)
 
-# Branch summary
+# Create summary by branch (include all branches)
 st.subheader("Summary by Branch")
-branch_summary = df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
-st.table(branch_summary)
+branch_summary = df.groupby(['BranchID', 'BranchName'])[['Expense', 'Revenue', 'Salary']].sum().reset_index()
+
+# Ensure all branches appear, even if no transactions
+full_summary = pd.merge(branches, branch_summary, on=['BranchID', 'BranchName'], how='left').fillna(0)
+
+st.table(full_summary)
