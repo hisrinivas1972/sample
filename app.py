@@ -4,16 +4,21 @@ import altair as alt
 
 @st.cache_data
 def load_data():
+    # Load the CSVs
     employees = pd.read_csv("employee.csv")
     branches = pd.read_csv("branch.csv")
     transactions = pd.read_csv("transactions.csv")
 
+    # Merge datasets
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
+
+    # Parse the 'Date' column
     df['Date'] = pd.to_datetime(df['Date'])
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
+    # Pivot table to get transaction sums by type per employee
     pivot_df = df.pivot_table(
         index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
         columns='Type',
@@ -28,34 +33,59 @@ df = load_data()
 
 st.title("Company Employee Dashboard with Transactions")
 
-# Sidebar filters - multi-select instead of single select for better filtering
+# Sidebar filters - Adding "All" as an option
 years = sorted(df['Year'].dropna().unique())
 months = sorted(df['Month'].dropna().unique())
 branches = sorted(df['BranchName'].dropna().unique())
 
-selected_years = st.sidebar.multiselect("Select Year(s)", options=years, default=years)
-selected_months = st.sidebar.multiselect("Select Month(s)", options=months, default=months)
-selected_branches = st.sidebar.multiselect("Select Branch(es)", options=branches, default=branches)
+# Select Year with "All" option
+selected_year = st.sidebar.selectbox(
+    "Select Year",
+    options=["All"] + [str(year) for year in years],
+    index=0
+)
 
-filtered_df = df[
-    (df['Year'].isin(selected_years)) &
-    (df['Month'].isin(selected_months)) &
-    (df['BranchName'].isin(selected_branches))
-]
+# Select Month with "All" option
+month_names = {1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"May", 6:"Jun", 7:"Jul", 8:"Aug", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dec"}
+selected_month = st.sidebar.selectbox(
+    "Select Month",
+    options=["All"] + [month_names[m] for m in months],
+    index=0
+)
+
+# Select Branch with "All" option
+selected_branches = st.sidebar.multiselect(
+    "Select Branch(es)",
+    options=["All"] + branches,
+    default=["All"]
+)
+
+# Filter dataframe based on selections
+filtered_df = df
+
+if selected_year != "All":
+    filtered_df = filtered_df[filtered_df['Year'] == int(selected_year)]
+
+if selected_month != "All":
+    month_num = [k for k, v in month_names.items() if v == selected_month][0]
+    filtered_df = filtered_df[filtered_df['Month'] == month_num]
+
+if selected_branches != ["All"]:
+    filtered_df = filtered_df[filtered_df['BranchName'].isin(selected_branches)]
 
 # Calculate Net Income safely
 filtered_df['Net Income'] = filtered_df.get('Revenue', 0) - filtered_df.get('Expense', 0) - filtered_df.get('Salary', 0)
 
-# Company Overview Metrics
+# Show Company Overview Metrics
 total_sales = filtered_df['Revenue'].sum()
 total_expenses = filtered_df['Expense'].sum() + filtered_df['Salary'].sum()
 net_income = total_sales - total_expenses
-avg_customer_rating = 4.69  # hardcoded example
+avg_customer_rating = 4.69  # example
 total_branches = filtered_df['BranchName'].nunique()
 top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
 total_employees = filtered_df['EmployeeID'].nunique()
 
-# Show metrics in two rows for better spacing
+# Show metrics in two rows
 with st.container():
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Sales", f"${total_sales:,.0f}")
@@ -68,14 +98,12 @@ with st.container():
     col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
     col7.metric("Total Employees", total_employees)
 
-st.markdown("---")
-
-# Summary by Branch with a bar chart and table
+# Branch Summary with a bar chart
 branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
 st.subheader("Summary by Branch")
 
-# Bar chart for Net Income by Branch using Altair (interactive like Power BI)
+# Bar chart for Net Income by Branch using Altair
 chart = alt.Chart(branch_summary).mark_bar().encode(
     x='BranchName',
     y='Net Income',
@@ -89,7 +117,7 @@ chart = alt.Chart(branch_summary).mark_bar().encode(
 
 st.altair_chart(chart, use_container_width=True)
 
-# Show table with formatting
+# Show summary table with currency formatting
 st.dataframe(branch_summary.style.format({
     'Expense': '${:,.2f}',
     'Revenue': '${:,.2f}',
@@ -99,7 +127,7 @@ st.dataframe(branch_summary.style.format({
 
 st.markdown("---")
 
-# Detailed Transactions by Employee with sorting and filtering
+# Detailed Transactions by Employee
 st.subheader("Detailed Transactions by Employee")
 
 st.dataframe(filtered_df.style.format({
@@ -108,4 +136,3 @@ st.dataframe(filtered_df.style.format({
     'Salary': '${:,.2f}',
     'Net Income': '${:,.2f}'
 }))
-
