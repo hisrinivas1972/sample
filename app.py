@@ -60,9 +60,9 @@ selected_branch = st.sidebar.selectbox(
     index=0  # Default to "All"
 )
 
-# Use session_state to track clicked branch
-if "clicked_branch" not in st.session_state:
-    st.session_state.clicked_branch = None
+# Use session_state to track the clicked sales
+if "clicked_sales" not in st.session_state:
+    st.session_state.clicked_sales = None
 
 # Filter dataframe based on selections
 filtered_df = df
@@ -77,9 +77,9 @@ if selected_month != "All":
 if selected_branch != "All":
     filtered_df = filtered_df[filtered_df['BranchName'] == selected_branch]
 
-# Handle the interactive branch click (use session_state to store the clicked branch)
-if st.session_state.clicked_branch:
-    filtered_df = filtered_df[filtered_df['BranchName'] == st.session_state.clicked_branch]
+# Handle the interactive sales click (use session_state to store the clicked sales)
+if st.session_state.clicked_sales:
+    filtered_df = filtered_df[filtered_df['Type'] == st.session_state.clicked_sales]
 
 # Calculate Net Income safely
 filtered_df['Net Income'] = filtered_df.get('Revenue', 0) - filtered_df.get('Expense', 0) - filtered_df.get('Salary', 0)
@@ -111,37 +111,32 @@ branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salar
 
 st.subheader("Summary by Branch")
 
-# Altair chart to show a clickable bar chart
+# Altair chart to show a clickable bar chart for Sales (or any other metric)
 click = alt.selection_single(
-    fields=['BranchName'],
+    fields=['Type'],
     bind='legend',  # binding to the legend so we can click on a legend item
-    name="branch_click",
+    name="sales_click",
     clear="mouseout",  # clear the selection on mouseout
     empty="none"
 )
 
-chart = alt.Chart(branch_summary).mark_bar().encode(
+chart = alt.Chart(filtered_df).mark_bar().encode(
     x='BranchName',
-    y='Net Income',
-    color=alt.condition(
-        click,  # Change color when clicked
-        alt.value("green"),
-        alt.value("red")
-    ),
-    tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income'],
-    opacity=alt.condition(click, alt.value(1), alt.value(0.3))  # Highlight clicked bars
+    y='Revenue',  # Use Revenue as an example of a clickable metric
+    color='Type',  # Differentiate by Type (Revenue, Expense, etc.)
+    tooltip=['BranchName', 'Revenue', 'Expense', 'Salary', 'Net Income'],
 ).add_selection(click).properties(width=700, height=400)
 
 # Show the chart
 st.altair_chart(chart, use_container_width=True)
 
-# Listen for the click event and update the session state
+# Listen for the click event and update session_state to filter by selected metric (sales)
 if click.selected:
-    selected_branch = click.selected["BranchName"]
-    st.session_state.clicked_branch = selected_branch
+    clicked_type = click.selected["Type"]
+    st.session_state.clicked_sales = clicked_type  # Store the clicked metric in session_state
 
 # Show summary table with currency formatting
-st.dataframe(branch_summary.style.format({
+st.dataframe(filtered_df.style.format({
     'Expense': '${:,.2f}',
     'Revenue': '${:,.2f}',
     'Salary': '${:,.2f}',
