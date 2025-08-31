@@ -77,7 +77,7 @@ if selected_month != "All":
 if selected_branches != ["All"]:
     filtered_df = filtered_df[filtered_df['BranchName'].isin(selected_branches)]
 
-# Handle the interactive branch click
+# Handle the interactive branch click (use session_state to store the clicked branch)
 if st.session_state.clicked_branch:
     filtered_df = filtered_df[filtered_df['BranchName'] == st.session_state.clicked_branch]
 
@@ -111,30 +111,34 @@ branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salar
 
 st.subheader("Summary by Branch")
 
-# Create an interactive Altair chart for Branch Summary with clickable behavior
+# Altair chart to show a clickable bar chart
+click = alt.selection_single(
+    fields=['BranchName'],
+    bind='legend',  # binding to the legend so we can click on a legend item
+    name="branch_click",
+    clear="mouseout",  # clear the selection on mouseout
+    empty="none"
+)
+
 chart = alt.Chart(branch_summary).mark_bar().encode(
     x='BranchName',
     y='Net Income',
     color=alt.condition(
-        alt.datum['Net Income'] > 0,
+        click,  # Change color when clicked
         alt.value("green"),
         alt.value("red")
     ),
-    tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income']
-).properties(width=700, height=400)
+    tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income'],
+    opacity=alt.condition(click, alt.value(1), alt.value(0.3))  # Highlight clicked bars
+).add_selection(click).properties(width=700, height=400)
 
-# Add a click event to the chart (click to filter based on branch)
-chart = chart.add_selection(
-    alt.selection_single(on="click", fields=["BranchName"], clear="mouseup")
-)
+# Show the chart
+st.altair_chart(chart, use_container_width=True)
 
-# This part listens for a click and updates the session state
-click = st.altair_chart(chart, use_container_width=True)
-
-# Store clicked branch value in session state
-if click:
-    clicked_branch = click.selection['BranchName']
-    st.session_state.clicked_branch = clicked_branch
+# Listen for the click event and update the session state
+if click.selected:
+    selected_branch = click.selected["BranchName"]
+    st.session_state.clicked_branch = selected_branch
 
 # Show summary table with currency formatting
 st.dataframe(branch_summary.style.format({
