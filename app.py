@@ -27,16 +27,19 @@ def load_data():
         fill_value=0
     ).reset_index()
 
+    # Flatten multi-index after pivot (if applicable)
+    pivot_df.columns = ['_'.join(col).strip() if isinstance(col, tuple) else col for col in pivot_df.columns.values]
+
     # Convert columns to correct types
     pivot_df['BranchName'] = pivot_df['BranchName'].astype(str)
-    pivot_df['Type'] = pivot_df['Type'].astype(str)
-    pivot_df['Revenue'] = pd.to_numeric(pivot_df['Revenue'], errors='coerce').fillna(0)
-    pivot_df['Expense'] = pd.to_numeric(pivot_df['Expense'], errors='coerce').fillna(0)
-    pivot_df['Salary'] = pd.to_numeric(pivot_df['Salary'], errors='coerce').fillna(0)
+    pivot_df['Revenue'] = pd.to_numeric(pivot_df.get('Revenue', 0), errors='coerce').fillna(0)
+    pivot_df['Expense'] = pd.to_numeric(pivot_df.get('Expense', 0), errors='coerce').fillna(0)
+    pivot_df['Salary'] = pd.to_numeric(pivot_df.get('Salary', 0), errors='coerce').fillna(0)
     pivot_df['Net Income'] = pivot_df['Revenue'] - pivot_df['Expense'] - pivot_df['Salary']
 
     return pivot_df
 
+# Load data
 df = load_data()
 
 st.title("Company Employee Dashboard with Transactions")
@@ -90,7 +93,7 @@ if st.session_state.clicked_branch:
     filtered_df = filtered_df[filtered_df['BranchName'] == st.session_state.clicked_branch]
 
 # Calculate Net Income safely
-filtered_df['Net Income'] = filtered_df['Revenue'] - filtered_df['Expense'] - filtered_df['Salary']
+filtered_df['Net Income'] = filtered_df.get('Revenue', 0) - filtered_df.get('Expense', 0) - filtered_df.get('Salary', 0)
 
 # Show Company Overview Metrics
 total_sales = filtered_df['Revenue'].sum()
@@ -129,8 +132,8 @@ click = alt.selection_single(
 )
 
 chart = alt.Chart(branch_summary).mark_bar().encode(
-    x='BranchName:N',  # Ensure BranchName is nominal
-    y='Net Income:Q',  # Ensure Net Income is quantitative
+    x='BranchName',
+    y='Net Income',
     color=alt.condition(
         click,  # Change color when clicked
         alt.value("green"),
