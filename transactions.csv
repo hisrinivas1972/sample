@@ -1,0 +1,6 @@
+TransactionID,EmployeeID,Date,Type,Amount
+1,1,2025-08-22,Revenue,3246.96
+2,1,2025-08-20,Expense,500.0
+3,2,2025-08-21,Salary,9166.67
+4,5,2025-08-22,Revenue,4633.77
+5,7,2025-08-23,Expense,300.0
