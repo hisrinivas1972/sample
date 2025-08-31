@@ -15,90 +15,120 @@ def load_data():
     df['Month'] = df['Date'].dt.month
 
     pivot_df = df.pivot_table(
-        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
+        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Position', 'Year', 'Month'],
         columns='Type',
         values='Amount',
         aggfunc='sum',
         fill_value=0
     ).reset_index()
 
-    return pivot_df
+    # Compute Net Income per employee per period
+    pivot_df['Net Income'] = pivot_df.get('Revenue', 0) - pivot_df.get('Expense', 0) - pivot_df.get('Salary', 0)
 
-st.title("Company Employee Dashboard with Transactions")
+    # Add a dummy Customer Rating column (replace with real if available)
+    pivot_df['Customer Rating'] = 4.5  # static example rating
 
-df = load_data()
+    return pivot_df, branches
 
-years = sorted(df['Year'].dropna().unique())
-months = sorted(df['Month'].dropna().unique())
+df, branches = load_data()
 
-selected_year = st.sidebar.selectbox(
-    "Select Year",
-    [0] + years,
-    format_func=lambda x: "All" if x == 0 else str(x)
-)
+st.title("Branch Performance Dashboard")
 
-selected_month = st.sidebar.selectbox(
-    "Select Month",
-    [0] + months,
-    format_func=lambda x: "All" if x == 0 else str(x)
-)
+# Select branch to analyze
+branch_list = df['BranchName'].unique()
+selected_branch = st.selectbox("Select Branch", branch_list)
 
-if selected_year != 0:
-    df = df[df['Year'] == selected_year]
-if selected_month != 0:
-    df = df[df['Month'] == selected_month]
+branch_df = df[df['BranchName'] == selected_branch]
 
-df['Net Income'] = df.get('Revenue', 0) - df.get('Expense', 0) - df.get('Salary', 0)
-
-# Calculate summaries for company overview
-total_sales = df['Revenue'].sum()
-total_expenses = df['Expense'].sum() + df['Salary'].sum()
+# Summary metrics for selected branch
+total_sales = branch_df['Revenue'].sum()
+total_expenses = branch_df['Expense'].sum() + branch_df['Salary'].sum()
 net_income = total_sales - total_expenses
-avg_customer_rating = 4.69  # static for now
-total_branches = df['BranchName'].nunique()
-top_performing_branches = (df.groupby('BranchName')['Net Income'].sum() > 0).sum()
-total_employees = df['EmployeeID'].nunique()
+num_employees = branch_df['EmployeeID'].nunique()
 
-# Show overview metrics
-st.markdown("## Company Overview")
-cols = st.columns(4)
-cols[0].metric("Total Sales", f"${total_sales:,.0f}")
-cols[1].metric("Total Expenses", f"${total_expenses:,.0f}")
-cols[2].metric("Net Income", f"${net_income:,.0f}")
-cols[3].metric("Avg. Customer Rating", f"{avg_customer_rating:.2f}")
+# Employees needing review (example: net income < 0 or sales/expense ratio < 1)
+employees_summary = branch_df.groupby(['EmployeeID', 'EmployeeName', 'Position']).agg({
+    'Revenue': 'sum',
+    'Expense': 'sum',
+    'Salary': 'sum',
+    'Net Income': 'sum'
+}).reset_index()
+
+employees_summary['Sales_Expense_Ratio'] = employees_summary.apply(
+    lambda row: row['Revenue'] / row['Expense'] if row['Expense'] > 0 else float('inf'),
+    axis=1
+)
+
+needs_review = employees_summary[(employees_summary['Net Income'] < 0) | (employees_summary['Sales_Expense_Ratio'] < 1)]
+num_needs_review = needs_review.shape[0]
+
+# Branch average rating (dummy avg from employees)
+branch_avg_rating = branch_df['Customer Rating'].mean()
+
+# Performance ratio (Sales / Expense)
+performance_ratio = total_sales / total_expenses if total_expenses > 0 else float('inf')
+
+# Show summary
+st.header(f"Branch Overview: {selected_branch}")
+
+cols = st.columns(3)
+cols[0].metric("Branch Sales", f"${total_sales:,.0f}")
+cols[1].metric("Branch Expenses", f"${total_expenses:,.0f}")
+cols[2].metric("Branch Net Income", f"${net_income:,.0f}")
 
 cols2 = st.columns(3)
-cols2[0].metric("Total Branches", total_branches)
-cols2[1].metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
-cols2[2].metric("Total Employees", total_employees)
+cols2[0].metric("Employees", num_employees)
+cols2[1].metric("Needs Review", f"{num_needs_review} Employee(s)")
+cols2[2].metric("Performance (Sales/Expense)", f"{performance_ratio:.2f}X")
 
-# Let user pick which detail to view
-option = st.radio(
-    "Select detail to view",
-    ('Detailed Transactions', 'Summary by Branch', 'Total Sales Details', 'Total Expenses Details', 'Net Income Details')
-)
+st.metric("Branch Avg. Rating", f"{branch_avg_rating:.2f}")
 
-if option == 'Detailed Transactions':
-    st.subheader("Detailed Transactions by Employee")
-    st.dataframe(df)
+# 12-Month Performance Chart
+st.subheader("12-Month Branch Performance")
 
-elif option == 'Summary by Branch':
-    st.subheader("Summary by Branch")
-    branch_summary = df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum()
-    st.table(branch_summary.style.format("{:,.2f}"))
+# Aggregate monthly data for 12 months from latest date
+latest_date = branch_df['Year'].max() * 100 + branch_df['Month'].max()  # e.g. 202508 for August 2025
+months_to_show = 12
 
-elif option == 'Total Sales Details':
-    st.subheader("Total Sales Details")
-    sales_by_branch = df.groupby("BranchName")['Revenue'].sum().sort_values(ascending=False)
-    st.bar_chart(sales_by_branch)
+# Prepare monthly aggregated data
+monthly_summary = branch_df.groupby(['Year', 'Month']).agg({
+    'Expense': 'sum',
+    'Revenue': 'sum'
+}).reset_index()
 
-elif option == 'Total Expenses Details':
-    st.subheader("Total Expenses Details")
-    expenses_by_branch = df.groupby("BranchName")[['Expense', 'Salary']].sum()
-    expenses_by_branch['Total Expenses'] = expenses_by_branch.sum(axis=1)
-    st.bar_chart(expenses_by_branch['Total Expenses'])
+monthly_summary['Net Sales'] = monthly_summary['Revenue'] - monthly_summary['Expense']
 
-elif option == 'Net Income Details':
-    st.subheader("Net Income Details")
-    net_income_by_branch = df.groupby("BranchName")['Net Income'].sum().sort_values(ascending=False)
-    st.bar_chart(net_income_by_branch)
+# Create a "YearMonth" for sorting and filtering last 12 months
+monthly_summary['YearMonth'] = monthly_summary['Year'] * 100 + monthly_summary['Month']
+
+monthly_summary = monthly_summary.sort_values('YearMonth').tail(months_to_show)
+
+# Plot expenses, gross sales (Revenue), net sales by month
+chart_data = monthly_summary.set_index(
+    pd.to_datetime(monthly_summary['Year'].astype(str) + '-' + monthly_summary['Month'].astype(str))
+)[['Expense', 'Revenue', 'Net Sales']]
+
+st.line_chart(chart_data)
+
+# Individual Employee Performance
+st.subheader("Individual Employee Performance")
+
+# Show employee detailed table
+emp_display = employees_summary.copy()
+emp_display['Status (Sales/Expense)'] = emp_display['Sales_Expense_Ratio'].apply(lambda x: f"{x:.2f}X")
+emp_display['Customer Rating'] = branch_avg_rating  # static example
+
+emp_display = emp_display[[
+    'EmployeeName', 'Position', 'Revenue', 'Expense', 'Salary', 'Net Income', 'Status (Sales/Expense)', 'Customer Rating'
+]]
+
+emp_display.columns = ['Employee', 'Position', 'Sales', 'Expenses', 'Salary', 'Net Income', 'Status (Sales/Expense)', 'Customer Rating']
+
+st.dataframe(emp_display.style.format({
+    'Sales': '${:,.2f}',
+    'Expenses': '${:,.2f}',
+    'Salary': '${:,.2f}',
+    'Net Income': '${:,.2f}',
+    'Customer Rating': '{:.2f}',
+    'Status (Sales/Expense)': '{}'
+}))
