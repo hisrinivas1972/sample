@@ -3,23 +3,23 @@ import streamlit as st
 
 @st.cache_data
 def load_data():
-    # Load CSV files
+    # Load CSVs
     employees = pd.read_csv("employee.csv")
     branches = pd.read_csv("branch.csv")
     transactions = pd.read_csv("transactions.csv")
 
-    # Merge employees with branches to get branch names
+    # Merge employees with branches
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
 
-    # Merge transactions with employee-branch info
+    # Merge transactions with full employee data
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
 
-    # Parse 'Date' and extract Year and Month
+    # Parse Date and extract Year, Month
     df['Date'] = pd.to_datetime(df['Date'])
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    # Pivot to get sums of Amount by Type per Employee per Year/Month
+    # Pivot data for summary view
     pivot_df = df.pivot_table(
         index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
         columns='Type',
@@ -30,33 +30,35 @@ def load_data():
 
     return pivot_df
 
-# Streamlit App
-st.title("📊 Company Employee Dashboard with Transactions")
+# Streamlit UI
+st.title("Company Employee Dashboard with Filters")
 
 df = load_data()
 
-# --- 📅 Filter Section ---
-st.sidebar.header("Filter by Date")
+# --- Sidebar Filters ---
+st.sidebar.header("Filter Options")
 
-# Get unique years and months
+# Year filter
 years = sorted(df["Year"].unique())
-months = sorted(df["Month"].unique())
+selected_year = st.sidebar.selectbox("Select Year", ["All"] + [str(y) for y in years])
 
-# Year and Month filters
-selected_year = st.sidebar.selectbox("Select Year", years)
-selected_month = st.sidebar.selectbox("Select Month", [0] + months, format_func=lambda x: "All" if x == 0 else x)
+# Month filter
+months = sorted(df["Month"].unique())
+selected_month = st.sidebar.selectbox("Select Month", ["All"] + [str(m) for m in months])
 
 # Apply filters
-if selected_month == 0:
-    filtered_df = df[df["Year"] == selected_year]
-else:
-    filtered_df = df[(df["Year"] == selected_year) & (df["Month"] == selected_month)]
+filtered_df = df.copy()
 
-# --- 📋 Detailed View ---
-st.subheader(f"Detailed Transactions for {selected_year}" + (f", Month {selected_month}" if selected_month else ""))
+if selected_year != "All":
+    filtered_df = filtered_df[filtered_df["Year"] == int(selected_year)]
+
+if selected_month != "All":
+    filtered_df = filtered_df[filtered_df["Month"] == int(selected_month)]
+
+# --- Output ---
+st.subheader("Detailed Transactions by Employee")
 st.dataframe(filtered_df)
 
-# --- 📌 Summary by Branch ---
 st.subheader("Summary by Branch")
-branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
+branch_summary = filtered_df.groupby("BranchName")[["Expense", "Revenue", "Salary"]].sum()
 st.table(branch_summary)
