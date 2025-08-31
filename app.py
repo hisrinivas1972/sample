@@ -2,7 +2,7 @@ import pandas as pd
 import streamlit as st
 import altair as alt
 
-@st.cache_data
+@st.cache_data(allow_output_mutation=True)
 def load_data():
     # Load the CSV files
     employees = pd.read_csv("employee.csv")
@@ -79,10 +79,6 @@ selected_employees = st.sidebar.multiselect(
     default=["All"]
 )
 
-# Use session_state to track clicked branch
-if "clicked_branch" not in st.session_state:
-    st.session_state.clicked_branch = None
-
 # Filter dataframe based on selections
 filtered_df = df
 
@@ -100,8 +96,9 @@ if selected_employees != ["All"]:
     filtered_df = filtered_df[filtered_df['EmployeeName'].isin(selected_employees)]
 
 # Handle the interactive branch click (use session_state to store the clicked branch)
-if st.session_state.clicked_branch:
-    filtered_df = filtered_df[filtered_df['BranchName'] == st.session_state.clicked_branch]
+if 'clicked_branch' in st.session_state:
+    clicked_branch = st.session_state.clicked_branch
+    filtered_df = filtered_df[filtered_df['BranchName'] == clicked_branch]
 
 # Calculate Net Income safely
 filtered_df['Net Income'] = filtered_df.get('Revenue', 0) - filtered_df.get('Expense', 0) - filtered_df.get('Salary', 0)
@@ -176,35 +173,6 @@ st.markdown("---")
 st.subheader("Summary by Employee")
 
 employee_summary = filtered_df.groupby("EmployeeName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
-
-# Altair chart to show a clickable bar chart for employees
-employee_click = alt.selection_single(
-    fields=['EmployeeName'],
-    bind='legend',  # binding to the legend so we can click on a legend item
-    name="employee_click",
-    clear="mouseout",  # clear the selection on mouseout
-    empty="none"
-)
-
-employee_chart = alt.Chart(employee_summary).mark_bar().encode(
-    x='EmployeeName',
-    y='Net Income',
-    color=alt.condition(
-        employee_click,  # Change color when clicked
-        alt.value("blue"),
-        alt.value("orange")
-    ),
-    tooltip=['EmployeeName', 'Expense', 'Revenue', 'Salary', 'Net Income'],
-    opacity=alt.condition(employee_click, alt.value(1), alt.value(0.3))  # Highlight clicked bars
-).add_selection(employee_click).properties(width=700, height=400)
-
-# Show the employee chart
-st.altair_chart(employee_chart, use_container_width=True)
-
-# Listen for the click event and update the session state
-if employee_click.selected:
-    selected_employee = employee_click.selected["EmployeeName"]
-    st.session_state.clicked_employee = selected_employee
 
 # Show employee summary table with currency formatting
 st.dataframe(employee_summary.style.format({
