@@ -8,56 +8,61 @@ def load_data():
     branches = pd.read_csv("branch.csv")
     transactions = pd.read_csv("transactions.csv")
 
-    # Merge employees with branches
+    # Merge employees with branches to get branch names
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
 
-    # Merge transactions with employee + branch info
+    # Merge transactions with employee-branch info
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
 
-    # Parse date
+    # Parse 'Date' and extract Year and Month
     df['Date'] = pd.to_datetime(df['Date'])
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    return df
+    # Pivot to get sums of Amount by Type (Revenue, Expense, Salary) per Employee per Year/Month
+    pivot_df = df.pivot_table(
+        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
+        columns='Type',
+        values='Amount',
+        aggfunc='sum',
+        fill_value=0
+    ).reset_index()
 
-# Load data
-df = load_data()
+    return pivot_df
 
 st.title("Company Employee Dashboard with Transactions")
 
-# Sidebar filters
-years = sorted(df['Year'].unique())
-months = sorted(df['Month'].unique())
+df = load_data()
 
-selected_year = st.sidebar.selectbox("Select Year", [0] + years, format_func=lambda x: "All" if x == 0 else x)
-selected_month = st.sidebar.selectbox("Select Month", [0] + months, format_func=lambda x: "All" if x == 0 else x)
+# Convert year and month columns to Python int list for selectbox
+years = sorted([int(y) for y in df['Year'].dropna().unique()])
+months = sorted([int(m) for m in df['Month'].dropna().unique()])
 
-# Apply filters
+selected_year = st.sidebar.selectbox(
+    "Select Year",
+    [0] + years,
+    format_func=lambda x: "All" if x == 0 else str(x)
+)
+
+selected_month = st.sidebar.selectbox(
+    "Select Month",
+    [0] + months,
+    format_func=lambda x: "All" if x == 0 else str(x)
+)
+
+# Filter dataframe based on selections
 filtered_df = df.copy()
 if selected_year != 0:
     filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 if selected_month != 0:
     filtered_df = filtered_df[filtered_df['Month'] == selected_month]
 
-# Pivot for transaction summary per employee
-pivot_df = filtered_df.pivot_table(
-    index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
-    columns='Type',
-    values='Amount',
-    aggfunc='sum',
-    fill_value=0
-).reset_index()
-
-# Display detailed transactions
+# Show detailed transaction info by employee and month
 st.subheader("Detailed Transactions by Employee")
-st.dataframe(pivot_df)
+st.dataframe(filtered_df)
 
-# Summary by branch with Net Income
+# Summary by Branch with Net Income (Revenue - Expense - Salary)
 st.subheader("Summary by Branch")
-
-branch_summary = pivot_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
-branch_summary["Net Income"] = branch_summary["Revenue"] - branch_summary["Expense"] - branch_summary["Salary"]
-branch_summary = branch_summary.round(2)
-
+branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
+branch_summary['Net Income'] = branch_summary['Revenue'] - branch_summary['Expense'] - branch_summary['Salary']
 st.table(branch_summary)
