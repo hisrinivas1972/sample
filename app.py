@@ -48,6 +48,7 @@ st.title("Company Employee Dashboard with Transactions")
 years = sorted(df['Year'].dropna().unique())
 months = sorted(df['Month'].dropna().unique())
 branches = sorted(df['BranchName'].dropna().unique())
+employees = sorted(df['EmployeeName'].dropna().unique())
 
 # Select Year with "All" option
 selected_year = st.sidebar.selectbox(
@@ -71,6 +72,12 @@ selected_branches = st.sidebar.multiselect(
     default=["All"]
 )
 
+# Select Employee(s) with "All" option
+selected_employees = st.sidebar.multiselect(
+    "Select Employee(s)",
+    options=["All"] + employees,
+    default=["All"]
+)
 
 # Use session_state to track clicked branch
 if "clicked_branch" not in st.session_state:
@@ -88,6 +95,9 @@ if selected_month != "All":
 
 if selected_branches != ["All"]:
     filtered_df = filtered_df[filtered_df['BranchName'].isin(selected_branches)]
+
+if selected_employees != ["All"]:
+    filtered_df = filtered_df[filtered_df['EmployeeName'].isin(selected_employees)]
 
 # Handle the interactive branch click (use session_state to store the clicked branch)
 if st.session_state.clicked_branch:
