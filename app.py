@@ -11,15 +11,15 @@ def load_data():
     # Merge employees with branches to get branch names
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
 
-    # Merge transactions with employee-branch info
-    df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
+    # LEFT JOIN: Include all employees even if they don't have transactions
+    df = pd.merge(emp_branch, transactions, on='EmployeeID', how='left')
 
-    # Parse 'Date' and extract Year and Month
-    df['Date'] = pd.to_datetime(df['Date'])
+    # Parse 'Date' only if present
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    # Pivot to get sums of Amount by Type (Revenue, Expense, Salary) per Employee per Year/Month
+    # Pivot: Sum Amounts by Type (Revenue, Expense, Salary)
     pivot_df = df.pivot_table(
         index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
         columns='Type',
@@ -30,28 +30,16 @@ def load_data():
 
     return pivot_df
 
+# Streamlit UI
 st.title("Company Employee Dashboard with Transactions")
 
 df = load_data()
 
-# Show detailed transaction info by employee and month
+# Detailed table
 st.subheader("Detailed Transactions by Employee")
 st.dataframe(df)
 
-# Summary by Employee
-st.subheader("Summary by Employee")
-employee_summary = df.groupby(['EmployeeID', 'EmployeeName', 'BranchName'])[['Expense', 'Revenue', 'Salary']].sum()
-st.table(employee_summary.style.format({
-    'Expense': '${:,.2f}',
-    'Revenue': '${:,.2f}',
-    'Salary': '${:,.2f}'
-}))
-
-# Summary by Branch
+# Branch summary
 st.subheader("Summary by Branch")
 branch_summary = df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
-st.table(branch_summary.style.format({
-    'Expense': '${:,.2f}',
-    'Revenue': '${:,.2f}',
-    'Salary': '${:,.2f}'
-}))
+st.table(branch_summary)
