@@ -28,61 +28,52 @@ def load_data():
         fill_value=0
     ).reset_index()
 
-    # Calculate Net Income
-    pivot_df['Net Income'] = pivot_df.get('Revenue', 0) - pivot_df.get('Expense', 0) - pivot_df.get('Salary', 0)
-
-    # Dummy customer rating for example
-    pivot_df['Customer Rating'] = 4.5
-
-    return pivot_df, branches
-
-# Load data
-df, branches = load_data()
+    return pivot_df
 
 st.title("Company Employee Dashboard with Transactions")
 
-# Sidebar filters for Year and Month
-years = sorted(df['Year'].unique().tolist())
-selected_year = st.sidebar.selectbox("Select Year", [0] + years, format_func=lambda x: "All" if x == 0 else x)
+df = load_data()
 
-months = sorted(df['Month'].unique().tolist())
-selected_month = st.sidebar.selectbox("Select Month", [0] + months, format_func=lambda x: "All" if x == 0 else x)
+# Clean years and months lists for sidebar selectboxes
+years = sorted(df['Year'].dropna().astype(int).unique().tolist())
+months = sorted(df['Month'].dropna().astype(int).unique().tolist())
 
-# Filter dataframe by selected year and month
+selected_year = st.sidebar.selectbox(
+    "Select Year",
+    [0] + years,
+    format_func=lambda x: "All" if x == 0 else str(x)
+)
+
+selected_month = st.sidebar.selectbox(
+    "Select Month",
+    [0] + months,
+    format_func=lambda x: "All" if x == 0 else str(x)
+)
+
+# Filter data based on selection
 filtered_df = df.copy()
 if selected_year != 0:
     filtered_df = filtered_df[filtered_df['Year'] == selected_year]
 if selected_month != 0:
     filtered_df = filtered_df[filtered_df['Month'] == selected_month]
 
-# Show detailed transactions by employee
+# Show detailed transaction info by employee and month
 st.subheader("Detailed Transactions by Employee")
 st.dataframe(filtered_df)
 
 # Summary by Branch
 st.subheader("Summary by Branch")
-branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum()
+branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
+
+# Calculate Net Income = Revenue - Expense - Salary
+branch_summary['Net Income'] = branch_summary['Revenue'] - branch_summary['Expense'] - branch_summary['Salary']
+
+# Format numbers nicely
+branch_summary = branch_summary.style.format({
+    'Expense': "${:,.2f}",
+    'Revenue': "${:,.2f}",
+    'Salary': "${:,.2f}",
+    'Net Income': "${:,.2f}"
+})
+
 st.table(branch_summary)
-
-# Company Overview Metrics
-st.subheader("Company Overview")
-
-total_sales = filtered_df['Revenue'].sum()
-total_expenses = filtered_df['Expense'].sum()
-net_income = filtered_df['Net Income'].sum()
-avg_customer_rating = filtered_df['Customer Rating'].mean()
-total_branches = branches['BranchID'].nunique()
-total_employees = filtered_df['EmployeeID'].nunique()
-top_performing_branches = (branch_summary['Net Income'] > 0).sum()
-
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Sales", f"${total_sales:,.2f}")
-col2.metric("Total Expenses", f"${total_expenses:,.2f}")
-col3.metric("Net Income", f"${net_income:,.2f}")
-
-col4, col5, col6 = st.columns(3)
-col4.metric("Avg. Customer Rating", f"{avg_customer_rating:.2f}")
-col5.metric("Total Branches", f"{total_branches}")
-col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
-
-st.metric("Total Employees", f"{total_employees}")
