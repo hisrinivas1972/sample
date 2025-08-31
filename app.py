@@ -7,18 +7,13 @@ def load_data():
     branches = pd.read_csv("branch.csv")
     transactions = pd.read_csv("transactions.csv")
 
-    # Merge employees with branches to get branch names
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
-
-    # Merge transactions with employee-branch info
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
 
-    # Parse 'Date' and extract Year and Month
     df['Date'] = pd.to_datetime(df['Date'])
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    # Pivot to get sums of Amount by Type (Revenue, Expense, Salary) per Employee per Year/Month
     pivot_df = df.pivot_table(
         index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
         columns='Type',
@@ -33,7 +28,6 @@ st.title("Company Employee Dashboard with Transactions")
 
 df = load_data()
 
-# Sidebar filters
 years = sorted(df['Year'].dropna().unique())
 months = sorted(df['Month'].dropna().unique())
 
@@ -49,45 +43,62 @@ selected_month = st.sidebar.selectbox(
     format_func=lambda x: "All" if x == 0 else str(x)
 )
 
-# Apply filters
 if selected_year != 0:
     df = df[df['Year'] == selected_year]
 if selected_month != 0:
     df = df[df['Month'] == selected_month]
 
-# Calculate Net Income per row
 df['Net Income'] = df.get('Revenue', 0) - df.get('Expense', 0) - df.get('Salary', 0)
 
-# Detailed transactions table
-st.subheader("Detailed Transactions by Employee")
-st.dataframe(df)
-
-# Summary by branch with Net Income
-st.subheader("Summary by Branch")
-branch_summary = df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum()
-st.table(branch_summary.style.format("{:,.2f}"))
-
-# Company Overview Dashboard
+# Calculate summaries for company overview
 total_sales = df['Revenue'].sum()
 total_expenses = df['Expense'].sum() + df['Salary'].sum()
 net_income = total_sales - total_expenses
-avg_customer_rating = 4.69  # Static example, replace if dynamic
+avg_customer_rating = 4.69  # static for now
 total_branches = df['BranchName'].nunique()
-top_performing_branches = (branch_summary['Net Income'] > 0).sum()
+top_performing_branches = (df.groupby('BranchName')['Net Income'].sum() > 0).sum()
 total_employees = df['EmployeeID'].nunique()
 
-st.markdown("---")
+# Show overview metrics
+st.markdown("## Company Overview")
+cols = st.columns(4)
+cols[0].metric("Total Sales", f"${total_sales:,.0f}")
+cols[1].metric("Total Expenses", f"${total_expenses:,.0f}")
+cols[2].metric("Net Income", f"${net_income:,.0f}")
+cols[3].metric("Avg. Customer Rating", f"{avg_customer_rating:.2f}")
 
-with st.container():
-    st.markdown("## Company Overview")
-    col1, col2, col3, col4 = st.columns(4)
+cols2 = st.columns(3)
+cols2[0].metric("Total Branches", total_branches)
+cols2[1].metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
+cols2[2].metric("Total Employees", total_employees)
 
-    col1.metric("Total Sales", f"${total_sales:,.0f}")
-    col2.metric("Total Expenses", f"${total_expenses:,.0f}")
-    col3.metric("Net Income", f"${net_income:,.0f}")
-    col4.metric("Avg. Customer Rating", f"{avg_customer_rating:.2f}")
+# Let user pick which detail to view
+option = st.radio(
+    "Select detail to view",
+    ('Detailed Transactions', 'Summary by Branch', 'Total Sales Details', 'Total Expenses Details', 'Net Income Details')
+)
 
-    col5, col6, col7 = st.columns(3)
-    col5.metric("Total Branches", total_branches)
-    col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
-    col7.metric("Total Employees", total_employees)
+if option == 'Detailed Transactions':
+    st.subheader("Detailed Transactions by Employee")
+    st.dataframe(df)
+
+elif option == 'Summary by Branch':
+    st.subheader("Summary by Branch")
+    branch_summary = df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum()
+    st.table(branch_summary.style.format("{:,.2f}"))
+
+elif option == 'Total Sales Details':
+    st.subheader("Total Sales Details")
+    sales_by_branch = df.groupby("BranchName")['Revenue'].sum().sort_values(ascending=False)
+    st.bar_chart(sales_by_branch)
+
+elif option == 'Total Expenses Details':
+    st.subheader("Total Expenses Details")
+    expenses_by_branch = df.groupby("BranchName")[['Expense', 'Salary']].sum()
+    expenses_by_branch['Total Expenses'] = expenses_by_branch.sum(axis=1)
+    st.bar_chart(expenses_by_branch['Total Expenses'])
+
+elif option == 'Net Income Details':
+    st.subheader("Net Income Details")
+    net_income_by_branch = df.groupby("BranchName")['Net Income'].sum().sort_values(ascending=False)
+    st.bar_chart(net_income_by_branch)
