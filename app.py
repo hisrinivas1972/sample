@@ -3,7 +3,7 @@ import streamlit as st
 import altair as alt
 
 # Use @st.cache_data for caching data transformations
-@st.cache_data(allow_output_mutation=True)
+@st.cache_data
 def load_data():
     # Load the CSV files
     employees = pd.read_csv("employee.csv")
