@@ -60,6 +60,10 @@ selected_branches = st.sidebar.multiselect(
     default=["All"]
 )
 
+# Use session_state to track clicked branch
+if "clicked_branch" not in st.session_state:
+    st.session_state.clicked_branch = None
+
 # Filter dataframe based on selections
 filtered_df = df
 
@@ -72,6 +76,10 @@ if selected_month != "All":
 
 if selected_branches != ["All"]:
     filtered_df = filtered_df[filtered_df['BranchName'].isin(selected_branches)]
+
+# Handle the interactive branch click
+if st.session_state.clicked_branch:
+    filtered_df = filtered_df[filtered_df['BranchName'] == st.session_state.clicked_branch]
 
 # Calculate Net Income safely
 filtered_df['Net Income'] = filtered_df.get('Revenue', 0) - filtered_df.get('Expense', 0) - filtered_df.get('Salary', 0)
@@ -103,7 +111,7 @@ branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salar
 
 st.subheader("Summary by Branch")
 
-# Bar chart for Net Income by Branch using Altair
+# Create an interactive Altair chart for Branch Summary with clickable behavior
 chart = alt.Chart(branch_summary).mark_bar().encode(
     x='BranchName',
     y='Net Income',
@@ -115,7 +123,18 @@ chart = alt.Chart(branch_summary).mark_bar().encode(
     tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income']
 ).properties(width=700, height=400)
 
-st.altair_chart(chart, use_container_width=True)
+# Add a click event to the chart (click to filter based on branch)
+chart = chart.add_selection(
+    alt.selection_single(on="click", fields=["BranchName"], clear="mouseup")
+)
+
+# This part listens for a click and updates the session state
+click = st.altair_chart(chart, use_container_width=True)
+
+# Store clicked branch value in session state
+if click:
+    clicked_branch = click.selection['BranchName']
+    st.session_state.clicked_branch = clicked_branch
 
 # Show summary table with currency formatting
 st.dataframe(branch_summary.style.format({
