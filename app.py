@@ -3,7 +3,7 @@ import streamlit as st
 
 @st.cache_data
 def load_data():
-    # Load CSVs
+    # Load CSV files
     employees = pd.read_csv("employee.csv")
     branches = pd.read_csv("branch.csv")
     transactions = pd.read_csv("transactions.csv")
@@ -11,54 +11,53 @@ def load_data():
     # Merge employees with branches
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
 
-    # Merge transactions with full employee data
+    # Merge transactions with employee + branch info
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
 
-    # Parse Date and extract Year, Month
+    # Parse date
     df['Date'] = pd.to_datetime(df['Date'])
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    # Pivot data for summary view
-    pivot_df = df.pivot_table(
-        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
-        columns='Type',
-        values='Amount',
-        aggfunc='sum',
-        fill_value=0
-    ).reset_index()
+    return df
 
-    return pivot_df
-
-# Streamlit UI
-st.title("Company Employee Dashboard with Filters")
-
+# Load data
 df = load_data()
 
-# --- Sidebar Filters ---
-st.sidebar.header("Filter Options")
+st.title("Company Employee Dashboard with Transactions")
 
-# Year filter
-years = sorted(df["Year"].unique())
-selected_year = st.sidebar.selectbox("Select Year", ["All"] + [str(y) for y in years])
+# Sidebar filters
+years = sorted(df['Year'].unique())
+months = sorted(df['Month'].unique())
 
-# Month filter
-months = sorted(df["Month"].unique())
-selected_month = st.sidebar.selectbox("Select Month", ["All"] + [str(m) for m in months])
+selected_year = st.sidebar.selectbox("Select Year", [0] + years, format_func=lambda x: "All" if x == 0 else x)
+selected_month = st.sidebar.selectbox("Select Month", [0] + months, format_func=lambda x: "All" if x == 0 else x)
 
 # Apply filters
 filtered_df = df.copy()
+if selected_year != 0:
+    filtered_df = filtered_df[filtered_df['Year'] == selected_year]
+if selected_month != 0:
+    filtered_df = filtered_df[filtered_df['Month'] == selected_month]
 
-if selected_year != "All":
-    filtered_df = filtered_df[filtered_df["Year"] == int(selected_year)]
+# Pivot for transaction summary per employee
+pivot_df = filtered_df.pivot_table(
+    index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
+    columns='Type',
+    values='Amount',
+    aggfunc='sum',
+    fill_value=0
+).reset_index()
 
-if selected_month != "All":
-    filtered_df = filtered_df[filtered_df["Month"] == int(selected_month)]
-
-# --- Output ---
+# Display detailed transactions
 st.subheader("Detailed Transactions by Employee")
-st.dataframe(filtered_df)
+st.dataframe(pivot_df)
 
+# Summary by branch with Net Income
 st.subheader("Summary by Branch")
-branch_summary = filtered_df.groupby("BranchName")[["Expense", "Revenue", "Salary"]].sum()
+
+branch_summary = pivot_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary']].sum()
+branch_summary["Net Income"] = branch_summary["Revenue"] - branch_summary["Expense"] - branch_summary["Salary"]
+branch_summary = branch_summary.round(2)
+
 st.table(branch_summary)
