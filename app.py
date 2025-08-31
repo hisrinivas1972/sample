@@ -71,6 +71,13 @@ selected_branches = st.sidebar.multiselect(
     default=["All"]
 )
 
+
+# Select Employee with "All" option
+selected_employees = st.sidebar.multiselect(
+    "Select Employee(s)",
+    options=["All"] + employee,
+    default=["All"]
+)
 # Use session_state to track clicked branch
 if "clicked_branch" not in st.session_state:
     st.session_state.clicked_branch = None
