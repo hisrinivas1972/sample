@@ -53,11 +53,11 @@ selected_month = st.sidebar.selectbox(
     index=0
 )
 
-# Select Branch with "All" option
-selected_branches = st.sidebar.multiselect(
-    "Select Branch(es)",
+# Select Branch with "All" option (Changed to selectbox for single selection)
+selected_branch = st.sidebar.selectbox(
+    "Select Branch",
     options=["All"] + branches,
-    default=["All"]
+    index=0  # Default to "All"
 )
 
 # Use session_state to track clicked branch
@@ -74,8 +74,8 @@ if selected_month != "All":
     month_num = [k for k, v in month_names.items() if v == selected_month][0]
     filtered_df = filtered_df[filtered_df['Month'] == month_num]
 
-if selected_branches != ["All"]:
-    filtered_df = filtered_df[filtered_df['BranchName'].isin(selected_branches)]
+if selected_branch != "All":
+    filtered_df = filtered_df[filtered_df['BranchName'] == selected_branch]
 
 # Handle the interactive branch click (use session_state to store the clicked branch)
 if st.session_state.clicked_branch:
