@@ -102,13 +102,13 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
         total_employees = filtered_df['EmployeeID'].nunique()
 
-        # New Performance Ratio and Status
+        # New Performance Ratio and Status (short codes)
         if total_expenses > 0:
             performance_ratio = total_sales / total_expenses
         else:
             performance_ratio = float('inf')  # Prevent div by zero
 
-        performance_status = "Performing Well" if performance_ratio >= 3 else "Not Performing Well"
+        performance_status = "PW" if performance_ratio >= 3 else "NPW"
 
         # --- Show Metrics ---
         with st.container():
@@ -128,7 +128,15 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         st.subheader("📍 Summary by Branch")
         branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
-        # Altair bar chart
+        branch_summary['Performance Ratio'] = branch_summary.apply(
+            lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
+            axis=1
+        )
+        branch_summary['Performance Status'] = branch_summary['Performance Ratio'].apply(
+            lambda x: "PW" if x >= 3 else "NPW"
+        )
+
+        # Altair bar chart (unchanged)
         click = alt.selection_single(fields=['BranchName'], bind='legend', name="branch_click", clear="mouseout", empty="none")
 
         chart = alt.Chart(branch_summary).mark_bar().encode(
@@ -141,12 +149,12 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         st.altair_chart(chart, use_container_width=True)
 
-        # Branch summary table
         st.dataframe(branch_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
-            'Net Income': '${:,.2f}'
+            'Net Income': '${:,.2f}',
+            'Performance Ratio': '{:.2f}x'
         }))
 
         st.markdown("---")
@@ -155,11 +163,20 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         st.subheader("🧑‍💼 Summary by Employee")
         employee_summary = filtered_df.groupby("EmployeeName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
+        employee_summary['Performance Ratio'] = employee_summary.apply(
+            lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
+            axis=1
+        )
+        employee_summary['Performance Status'] = employee_summary['Performance Ratio'].apply(
+            lambda x: "PW" if x >= 3 else "NPW"
+        )
+
         st.dataframe(employee_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
-            'Net Income': '${:,.2f}'
+            'Net Income': '${:,.2f}',
+            'Performance Ratio': '{:.2f}x'
         }))
 
         st.markdown("---")
