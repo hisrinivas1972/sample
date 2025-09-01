@@ -3,7 +3,7 @@ import streamlit as st
 import altair as alt
 
 st.set_page_config(page_title="Employee Dashboard", layout="wide")
-st.title("📊 Company Employee Dashboard with Transactions")
+st.title("📊 Company Overview")
 
 # --- Sidebar: File Uploads ---
 st.sidebar.header("📤 Upload CSV Files")
