@@ -128,7 +128,6 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         net_income = total_sales - total_expenses
         avg_customer_rating = 4.69
         total_branches = filtered_df['BranchName'].nunique()
-        top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
         total_employees = filtered_df['EmployeeID'].nunique()
 
         if total_expenses > 0:
@@ -180,9 +179,9 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         )
 
         # Toggle to Show Raw Data
-        show_raw_data = st.checkbox("Show Raw Data", value=False)
+        show_raw_data_branch = st.checkbox("Show Raw Data (Branch)", value=False)
 
-        if show_raw_data:
+        if show_raw_data_branch:
             st.dataframe(branch_summary.drop(columns=["Performance Status"]).style.format({
                 'Expense': '${:,.2f}',
                 'Revenue': '${:,.2f}',
@@ -202,19 +201,11 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
                 'Total Employees': '{:,.0f}'  # Format as integer
             }))
 
-        st.markdown("---")
-
         # --- Employee Summary ---
-        st.subheader("🧑‍💼 Summary by Employee")
+        st.subheader("👨‍💼 Summary by Employee")
+        employee_summary = filtered_df.groupby("EmployeeName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
-        # Group by EmployeeName and BranchName first, sum metrics
-        emp_branch_summary = filtered_df.groupby(["EmployeeName", "BranchName"])[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
-
-        # Pick the branch with highest Net Income per employee
-        idx = emp_branch_summary.groupby("EmployeeName")['Net Income'].idxmax()
-        employee_summary = emp_branch_summary.loc[idx].reset_index(drop=True)
-
-        # Calculate Performance Ratio and Status
+        # Calculate Performance Ratio for employees
         employee_summary['Performance Ratio'] = employee_summary.apply(
             lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
             axis=1
@@ -226,9 +217,9 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         )
 
         # Toggle to Show Raw Data
-        show_raw_data_emp = st.checkbox("Show Raw Data (Employee)", value=False)
+        show_raw_data_employee = st.checkbox("Show Raw Data (Employee)", value=False)
 
-        if show_raw_data_emp:
+        if show_raw_data_employee:
             st.dataframe(employee_summary.drop(columns=["Performance Status"]).style.format({
                 'Expense': '${:,.2f}',
                 'Revenue': '${:,.2f}',
@@ -245,17 +236,6 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
                 'Net Income': '${:,.2f}',
                 'Performance Ratio': '{:.2f}x'
             }))
-
-        st.markdown("---")
-
-        # --- Detailed Transactions ---
-        st.subheader("📄 Detailed Transactions by Employee")
-        st.dataframe(filtered_df.style.format({
-            'Revenue': '${:,.2f}',
-            'Expense': '${:,.2f}',
-            'Salary': '${:,.2f}',
-            'Net Income': '${:,.2f}'
-        }))
 
     else:
         st.info("👈 Use the filters and click **Fetch Data** to update the dashboard.")
