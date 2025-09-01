@@ -25,16 +25,14 @@ def blinking_star():
     st.markdown(blinking_css, unsafe_allow_html=True)
     return '<span class="blink">⭐✨</span>'
 
-# --- Function to generate performance status HTML ---
+# --- Performance Status Display (with Star) ---
 def performance_status_display(ratio):
     if ratio >= 3:
-        star_html = blinking_star()
-        return f'<div style="text-align:center;">{star_html}<br><strong>PW</strong></div>'
-    elif 1 < ratio < 3:
-        star = "⭐"
-        return f'<div style="text-align:center;">{star}<br><strong>NPW</strong></div>'
+        return blinking_star()  # Blinking star for PW
+    elif ratio > 1:
+        return "⭐"  # Single star for NPW with ratio > 1
     else:
-        return ''  # No star and no text if ratio <= 1
+        return ""  # No star for NPW with ratio <= 1
 
 # --- Sidebar: File Uploads ---
 st.sidebar.header("📤 Upload CSV Files")
@@ -138,6 +136,8 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         else:
             performance_ratio = float('inf')  # Prevent div by zero
 
+        performance_status = "PW" if performance_ratio >= 3 else "NPW"
+
         # --- Show Metrics ---
         with st.container():
             col1, col2, col3, col4 = st.columns(4)
@@ -150,15 +150,16 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             col5.metric("Total Branches", total_branches)
             col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
 
-            perf_status_html = performance_status_display(performance_ratio)
-            col7.markdown(f"**Performance Status:**<br>{perf_status_html}", unsafe_allow_html=True)
+            if performance_status == "PW":
+                perf_status_display = blinking_star()
+            else:
+                perf_status_display = "⭐"
 
+            col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
             col8.metric("Total Employees", total_employees)
 
         # --- Branch Summary ---
         st.subheader("📍 Summary by Branch")
-
-        # Calculate summary metrics per branch
         branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
         # Calculate total unique employees per branch
@@ -167,12 +168,15 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         # Merge employee count into branch summary
         branch_summary = branch_summary.merge(emp_count, on='BranchName', how='left')
 
+        # Calculate Performance Ratio and Status
         branch_summary['Performance Ratio'] = branch_summary.apply(
             lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
             axis=1
         )
+
+        # Apply performance status function for stars
         branch_summary['Performance Status'] = branch_summary['Performance Ratio'].apply(
-            lambda x: "PW" if x >= 3 else "NPW"
+            lambda ratio: performance_status_display(ratio)
         )
 
         click = alt.selection_single(fields=['BranchName'], bind='legend', name="branch_click", clear="mouseout", empty="none")
@@ -187,7 +191,11 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         st.altair_chart(chart, use_container_width=True)
 
-        # Show DataFrame with the new column
+        # Display branch summary data with performance status HTML
+        branch_summary['Performance Status'] = branch_summary['Performance Status'].apply(
+            lambda status: f"<div style='text-align:center;'>{status}</div>"  # Ensure it renders HTML correctly
+        )
+
         st.dataframe(branch_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
@@ -195,7 +203,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             'Net Income': '${:,.2f}',
             'Performance Ratio': '{:.2f}x',
             'Total Employees': '{:,.0f}'  # Format as integer
-        }))
+        }).hide_columns(['Performance Status']))  # Hide the raw 'Performance Status' column
 
         st.markdown("---")
 
@@ -209,12 +217,20 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         idx = emp_branch_summary.groupby("EmployeeName")['Net Income'].idxmax()
         employee_summary = emp_branch_summary.loc[idx].reset_index(drop=True)
 
+        # Calculate Performance Ratio and Status
         employee_summary['Performance Ratio'] = employee_summary.apply(
             lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
             axis=1
         )
+
+        # Apply performance status function for stars
         employee_summary['Performance Status'] = employee_summary['Performance Ratio'].apply(
-            lambda x: "PW" if x >= 3 else "NPW"
+            lambda ratio: performance_status_display(ratio)
+        )
+
+        # Display employee summary data with performance status HTML
+        employee_summary['Performance Status'] = employee_summary['Performance Status'].apply(
+            lambda status: f"<div style='text-align:center;'>{status}</div>"  # Ensure it renders HTML correctly
         )
 
         st.dataframe(employee_summary.style.format({
@@ -223,7 +239,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}',
             'Performance Ratio': '{:.2f}x'
-        }))
+        }).hide_columns(['Performance Status']))  # Hide the raw 'Performance Status' column
 
         st.markdown("---")
 
