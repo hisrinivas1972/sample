@@ -95,37 +95,27 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         # Net income recalc
         filtered_df['Net Income'] = filtered_df.get('Revenue', 0) - filtered_df.get('Expense', 0) - filtered_df.get('Salary', 0)
 
-        # --- Show Metrics (Click-to-Reveal Buttons) ---
+        # --- Metrics ---
+        total_sales = filtered_df['Revenue'].sum()
+        total_expenses = filtered_df['Expense'].sum() + filtered_df['Salary'].sum()
+        net_income = total_sales - total_expenses
+        avg_customer_rating = 4.69
+        total_branches = filtered_df['BranchName'].nunique()
+        top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
+        total_employees = filtered_df['EmployeeID'].nunique()
+
+        # --- Show Metrics ---
         with st.container():
             col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Total Sales", f"${total_sales:,.0f}")
+            col2.metric("Total Expenses", f"${total_expenses:,.0f}")
+            col3.metric("Net Income", f"${net_income:,.0f}")
+            col4.metric("Avg. Customer Rating", f"{avg_customer_rating:.2f}")
 
-            if col1.button("Show Total Sales"):
-                col1.metric("Total Sales", f"${filtered_df['Revenue'].sum():,.0f}")
-
-            if col2.button("Show Total Expenses"):
-                total_exp = filtered_df['Expense'].sum() + filtered_df['Salary'].sum()
-                col2.metric("Total Expenses", f"${total_exp:,.0f}")
-
-            if col3.button("Show Net Income"):
-                net_inc = filtered_df['Revenue'].sum() - (filtered_df['Expense'].sum() + filtered_df['Salary'].sum())
-                col3.metric("Net Income", f"${net_inc:,.0f}")
-
-            if col4.button("Show Avg. Customer Rating"):
-                col4.metric("Avg. Customer Rating", f"{4.69:.2f}")
-
-        with st.container():
             col5, col6, col7 = st.columns(3)
-
-            if col5.button("Show Total Branches"):
-                col5.metric("Total Branches", filtered_df['BranchName'].nunique())
-
-            if col6.button("Show Top Performing Branches"):
-                total_branches = filtered_df['BranchName'].nunique()
-                top_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
-                col6.metric("Top Performing Branches", f"{top_branches} / {total_branches}")
-
-            if col7.button("Show Total Employees"):
-                col7.metric("Total Employees", filtered_df['EmployeeID'].nunique())
+            col5.metric("Total Branches", total_branches)
+            col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
+            col7.metric("Total Employees", total_employees)
 
         # --- Branch Summary ---
         st.subheader("📍 Summary by Branch")
