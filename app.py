@@ -25,6 +25,17 @@ def blinking_star():
     st.markdown(blinking_css, unsafe_allow_html=True)
     return '<span class="blink">⭐✨</span>'
 
+# --- Function to generate performance status HTML ---
+def performance_status_display(ratio):
+    if ratio >= 3:
+        star_html = blinking_star()
+        return f'<div style="text-align:center;">{star_html}<br><strong>PW</strong></div>'
+    elif 1 < ratio < 3:
+        star = "⭐"
+        return f'<div style="text-align:center;">{star}<br><strong>NPW</strong></div>'
+    else:
+        return ''  # No star and no text if ratio <= 1
+
 # --- Sidebar: File Uploads ---
 st.sidebar.header("📤 Upload CSV Files")
 
@@ -127,8 +138,6 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         else:
             performance_ratio = float('inf')  # Prevent div by zero
 
-        performance_status = "PW" if performance_ratio >= 3 else "NPW"
-
         # --- Show Metrics ---
         with st.container():
             col1, col2, col3, col4 = st.columns(4)
@@ -141,12 +150,9 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             col5.metric("Total Branches", total_branches)
             col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
 
-            if performance_status == "PW":
-                perf_status_display = blinking_star()
-            else:
-                perf_status_display = "⭐"
+            perf_status_html = performance_status_display(performance_ratio)
+            col7.markdown(f"**Performance Status:**<br>{perf_status_html}", unsafe_allow_html=True)
 
-            col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
             col8.metric("Total Employees", total_employees)
 
         # --- Branch Summary ---
