@@ -41,9 +41,12 @@ def load_data(emp_file, branch_file, trans_file):
 
     # Clean and compute Net Income
     pivot_df['BranchName'] = pivot_df['BranchName'].astype(str)
-    pivot_df['Revenue'] = pd.to_numeric(pivot_df.get('Revenue', 0), errors='coerce').fillna(0)
-    pivot_df['Expense'] = pd.to_numeric(pivot_df.get('Expense', 0), errors='coerce').fillna(0)
-    pivot_df['Salary'] = pd.to_numeric(pivot_df.get('Salary', 0), errors='coerce').fillna(0)
+    for col in ['Revenue', 'Expense', 'Salary']:
+        if col not in pivot_df.columns:
+            pivot_df[col] = 0
+        else:
+            pivot_df[col] = pd.to_numeric(pivot_df[col], errors='coerce').fillna(0)
+
     pivot_df['Net Income'] = pivot_df['Revenue'] - pivot_df['Expense'] - pivot_df['Salary']
 
     return pivot_df
@@ -64,8 +67,8 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
     st.sidebar.header("📅 Filters")
     selected_year = st.sidebar.selectbox("Select Year", ["All"] + [str(year) for year in years], index=0)
     selected_month = st.sidebar.selectbox("Select Month", ["All"] + [month_names[m] for m in months], index=0)
-    selected_branches = st.sidebar.multiselect("Select Branch(es)", ["All"] + branches, default=["All"])
-    selected_employees = st.sidebar.multiselect("Select Employee(s)", ["All"] + employees, default=["All"])
+    selected_branches = st.sidebar.multiselect("Select Branch(es)", branches, default=branches)
+    selected_employees = st.sidebar.multiselect("Select Employee(s)", employees, default=employees)
 
     # --- Fetch Data Button ---
     fetch_data = st.sidebar.button("🔍 Fetch Data")
@@ -81,19 +84,14 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             month_num = [k for k, v in month_names.items() if v == selected_month][0]
             filtered_df = filtered_df[filtered_df['Month'] == month_num]
 
-        if selected_branches != ["All"]:
+        if selected_branches:
             filtered_df = filtered_df[filtered_df['BranchName'].isin(selected_branches)]
 
-        if selected_employees != ["All"]:
+        if selected_employees:
             filtered_df = filtered_df[filtered_df['EmployeeName'].isin(selected_employees)]
 
-        # Handle branch click via session state
-        if 'clicked_branch' in st.session_state:
-            clicked_branch = st.session_state.clicked_branch
-            filtered_df = filtered_df[filtered_df['BranchName'] == clicked_branch]
-
-        # Net income recalc
-        filtered_df['Net Income'] = filtered_df.get('Revenue', 0) - filtered_df.get('Expense', 0) - filtered_df.get('Salary', 0)
+        # Net income recalculation
+        filtered_df['Net Income'] = filtered_df['Revenue'] - filtered_df['Expense'] - filtered_df['Salary']
 
         # --- Metrics ---
         total_sales = filtered_df['Revenue'].sum()
@@ -104,6 +102,14 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
         total_employees = filtered_df['EmployeeID'].nunique()
 
+        # New Performance Ratio and Status
+        if total_expenses > 0:
+            performance_ratio = total_sales / total_expenses
+        else:
+            performance_ratio = float('inf')  # Prevent div by zero
+
+        performance_status = "Performing Well" if performance_ratio >= 3 else "Not Performing Well"
+
         # --- Show Metrics ---
         with st.container():
             col1, col2, col3, col4 = st.columns(4)
@@ -112,10 +118,11 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             col3.metric("Net Income", f"${net_income:,.0f}")
             col4.metric("Avg. Customer Rating", f"{avg_customer_rating:.2f}")
 
-            col5, col6, col7 = st.columns(3)
+            col5, col6, col7, col8 = st.columns(4)
             col5.metric("Total Branches", total_branches)
-            col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
-            col7.metric("Total Employees", total_employees)
+            col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
+            col7.metric("Performance Status", performance_status)
+            col8.metric("Total Employees", total_employees)
 
         # --- Branch Summary ---
         st.subheader("📍 Summary by Branch")
@@ -133,10 +140,6 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         ).add_selection(click).properties(width=700, height=400)
 
         st.altair_chart(chart, use_container_width=True)
-
-        # Save branch selection in session state
-        if click.selected:
-            st.session_state.clicked_branch = click.selected['BranchName']
 
         # Branch summary table
         st.dataframe(branch_summary.style.format({
