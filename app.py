@@ -5,37 +5,25 @@ import altair as alt
 st.set_page_config(page_title="Branch Performance Dashboard", layout="wide")
 st.title("📊 Company Overview")
 
-# --- CSS for blinking star ---
-blinking_css = """
-<style>
-@keyframes blink {
-    0% { opacity: 1; }
-    50% { opacity: 0; }
-    100% { opacity: 1; }
-}
-.blink {
-    animation: blink 1s infinite;
-    font-weight: bold;
-    color: gold;
-    font-size: 24px;
-}
-</style>
-"""
-st.markdown(blinking_css, unsafe_allow_html=True)
-
+# --- Blinking star function ---
 def blinking_star():
+    blinking_css = """
+    <style>
+    @keyframes blink {
+        0% { opacity: 1; }
+        50% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+    .blink {
+        animation: blink 1s infinite;
+        font-size: 24px;
+        color: gold;
+        font-weight: bold;
+    }
+    </style>
+    """
+    st.markdown(blinking_css, unsafe_allow_html=True)
     return '<span class="blink">⭐✨</span>'
-
-def normal_star():
-    return '⭐'
-
-def format_performance_status(val):
-    if val == "PW":
-        return blinking_star()
-    elif val == "NPW":
-        return normal_star()
-    else:
-        return val
 
 # --- Sidebar: File Uploads ---
 st.sidebar.header("📤 Upload CSV Files")
@@ -153,8 +141,12 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             col5.metric("Total Branches", total_branches)
             col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
 
-            # Display blinking or normal star for performance status
-            col7.markdown(f"**Performance Status:** {blinking_star() if performance_status == 'PW' else normal_star()}", unsafe_allow_html=True)
+            if performance_status == "PW":
+                perf_status_display = blinking_star()
+            else:
+                perf_status_display = "⭐"
+
+            col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
             col8.metric("Total Employees", total_employees)
 
         # --- Branch Summary ---
@@ -181,24 +173,23 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         st.altair_chart(chart, use_container_width=True)
 
-        # Format branch summary with blinking star in Performance Status
-        branch_summary_styled = branch_summary.style.format({
+        st.dataframe(branch_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}',
             'Performance Ratio': '{:.2f}x'
-        }).applymap(lambda v: format_performance_status(v) if v in ["PW", "NPW"] else v, subset=['Performance Status'])
-
-        st.write(branch_summary_styled.to_html(escape=False), unsafe_allow_html=True)
+        }))
 
         st.markdown("---")
 
         # --- Employee Summary ---
         st.subheader("🧑‍💼 Summary by Employee")
 
+        # Group by EmployeeName and BranchName first, sum metrics
         emp_branch_summary = filtered_df.groupby(["EmployeeName", "BranchName"])[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
+        # Pick the branch with highest Net Income per employee
         idx = emp_branch_summary.groupby("EmployeeName")['Net Income'].idxmax()
         employee_summary = emp_branch_summary.loc[idx].reset_index(drop=True)
 
@@ -210,15 +201,13 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             lambda x: "PW" if x >= 3 else "NPW"
         )
 
-        employee_summary_styled = employee_summary.style.format({
+        st.dataframe(employee_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}',
             'Performance Ratio': '{:.2f}x'
-        }).applymap(lambda v: format_performance_status(v) if v in ["PW", "NPW"] else v, subset=['Performance Status'])
-
-        st.write(employee_summary_styled.to_html(escape=False), unsafe_allow_html=True)
+        }))
 
         st.markdown("---")
 
