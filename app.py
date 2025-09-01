@@ -104,18 +104,42 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
         total_employees = filtered_df['EmployeeID'].nunique()
 
-        # --- Show Metrics ---
+        # --- Calculate multipliers based on baselines ---
+        baseline_sales = 1_000_000
+        baseline_expenses = 500_000
+        baseline_net_income = 500_000
+        baseline_avg_rating = 5  # max rating assumed 5
+        baseline_branches = 1
+        baseline_top_performing = total_branches if total_branches != 0 else 1
+        baseline_employees = 4
+
+        def multiplier_str(value, baseline):
+            if baseline == 0:
+                return ""
+            mult = max(1, round(value / baseline))
+            return f"{mult}X"
+
+        # Calculate multipliers
+        sales_mult = multiplier_str(total_sales, baseline_sales)
+        expenses_mult = multiplier_str(total_expenses, baseline_expenses)
+        net_income_mult = multiplier_str(net_income, baseline_net_income)
+        # For Avg. Customer Rating, no multiplier, just show rating
+        branches_mult = multiplier_str(total_branches, baseline_branches)
+        top_perf_mult = multiplier_str(top_performing_branches, baseline_top_performing)
+        employees_mult = multiplier_str(total_employees, baseline_employees)
+
+        # --- Show Metrics with multiplier as delta ---
         with st.container():
             col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Total Sales", f"${total_sales:,.0f}")
-            col2.metric("Total Expenses", f"${total_expenses:,.0f}")
-            col3.metric("Net Income", f"${net_income:,.0f}")
+            col1.metric("Total Sales", f"${total_sales:,.0f}", delta=sales_mult)
+            col2.metric("Total Expenses", f"${total_expenses:,.0f}", delta=expenses_mult)
+            col3.metric("Net Income", f"${net_income:,.0f}", delta=net_income_mult)
             col4.metric("Avg. Customer Rating", f"{avg_customer_rating:.2f}")
 
             col5, col6, col7 = st.columns(3)
-            col5.metric("Total Branches", total_branches)
-            col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
-            col7.metric("Total Employees", total_employees)
+            col5.metric("Total Branches", total_branches, delta=branches_mult)
+            col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}", delta=top_perf_mult)
+            col7.metric("Total Employees", total_employees, delta=employees_mult)
 
         # --- Branch Summary ---
         st.subheader("📍 Summary by Branch")
