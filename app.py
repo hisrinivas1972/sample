@@ -196,15 +196,15 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             lambda status: f"<div style='text-align:center;'>{status}</div>"  # Ensure it renders HTML correctly
         )
 
-        st.dataframe(branch_summary.style.format({
+        st.dataframe(branch_summary.drop(columns=["Performance Status"]).style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}',
             'Performance Ratio': '{:.2f}x',
             'Total Employees': '{:,.0f}'  # Format as integer
-        }).hide_columns(['Performance Status']))  # Hide the raw 'Performance Status' column
-
+        }))
+        
         st.markdown("---")
 
         # --- Employee Summary ---
@@ -233,13 +233,13 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             lambda status: f"<div style='text-align:center;'>{status}</div>"  # Ensure it renders HTML correctly
         )
 
-        st.dataframe(employee_summary.style.format({
+        st.dataframe(employee_summary.drop(columns=["Performance Status"]).style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}',
             'Performance Ratio': '{:.2f}x'
-        }).hide_columns(['Performance Status']))  # Hide the raw 'Performance Status' column
+        }))
 
         st.markdown("---")
 
