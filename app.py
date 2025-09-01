@@ -179,32 +179,29 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             lambda ratio: performance_status_display(ratio)
         )
 
-        click = alt.selection_single(fields=['BranchName'], bind='legend', name="branch_click", clear="mouseout", empty="none")
+        # Toggle to Show Raw Data
+        show_raw_data = st.checkbox("Show Raw Data", value=False)
 
-        chart = alt.Chart(branch_summary).mark_bar().encode(
-            x='BranchName',
-            y='Net Income',
-            color=alt.condition(click, alt.value("green"), alt.value("red")),
-            tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income', 'Total Employees'],  # Added employees to tooltip
-            opacity=alt.condition(click, alt.value(1), alt.value(0.3))
-        ).add_selection(click).properties(width=700, height=400)
+        if show_raw_data:
+            st.dataframe(branch_summary.drop(columns=["Performance Status"]).style.format({
+                'Expense': '${:,.2f}',
+                'Revenue': '${:,.2f}',
+                'Salary': '${:,.2f}',
+                'Net Income': '${:,.2f}',
+                'Performance Ratio': '{:.2f}x',
+                'Total Employees': '{:,.0f}'  # Format as integer
+            }))
+        else:
+            # Only show summarized data (no raw data)
+            st.dataframe(branch_summary.drop(columns=["Performance Status"]).style.format({
+                'Expense': '${:,.2f}',
+                'Revenue': '${:,.2f}',
+                'Salary': '${:,.2f}',
+                'Net Income': '${:,.2f}',
+                'Performance Ratio': '{:.2f}x',
+                'Total Employees': '{:,.0f}'  # Format as integer
+            }))
 
-        st.altair_chart(chart, use_container_width=True)
-
-        # Display branch summary data with performance status HTML
-        branch_summary['Performance Status'] = branch_summary['Performance Status'].apply(
-            lambda status: f"<div style='text-align:center;'>{status}</div>"  # Ensure it renders HTML correctly
-        )
-
-        st.dataframe(branch_summary.drop(columns=["Performance Status"]).style.format({
-            'Expense': '${:,.2f}',
-            'Revenue': '${:,.2f}',
-            'Salary': '${:,.2f}',
-            'Net Income': '${:,.2f}',
-            'Performance Ratio': '{:.2f}x',
-            'Total Employees': '{:,.0f}'  # Format as integer
-        }))
-        
         st.markdown("---")
 
         # --- Employee Summary ---
@@ -228,18 +225,26 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             lambda ratio: performance_status_display(ratio)
         )
 
-        # Display employee summary data with performance status HTML
-        employee_summary['Performance Status'] = employee_summary['Performance Status'].apply(
-            lambda status: f"<div style='text-align:center;'>{status}</div>"  # Ensure it renders HTML correctly
-        )
+        # Toggle to Show Raw Data
+        show_raw_data_emp = st.checkbox("Show Raw Data (Employee)", value=False)
 
-        st.dataframe(employee_summary.drop(columns=["Performance Status"]).style.format({
-            'Expense': '${:,.2f}',
-            'Revenue': '${:,.2f}',
-            'Salary': '${:,.2f}',
-            'Net Income': '${:,.2f}',
-            'Performance Ratio': '{:.2f}x'
-        }))
+        if show_raw_data_emp:
+            st.dataframe(employee_summary.drop(columns=["Performance Status"]).style.format({
+                'Expense': '${:,.2f}',
+                'Revenue': '${:,.2f}',
+                'Salary': '${:,.2f}',
+                'Net Income': '${:,.2f}',
+                'Performance Ratio': '{:.2f}x'
+            }))
+        else:
+            # Only show summarized data (no raw data)
+            st.dataframe(employee_summary.drop(columns=["Performance Status"]).style.format({
+                'Expense': '${:,.2f}',
+                'Revenue': '${:,.2f}',
+                'Salary': '${:,.2f}',
+                'Net Income': '${:,.2f}',
+                'Performance Ratio': '{:.2f}x'
+            }))
 
         st.markdown("---")
 
