@@ -1,6 +1,7 @@
 import pandas as pd
 import streamlit as st
 import altair as alt
+from io import StringIO
 
 st.set_page_config(page_title="Branch Performance Dashboard", layout="wide")
 st.title("📊 Company Overview")
@@ -191,6 +192,12 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
                 col5.metric(f"Performance Ratio ({row['BranchName']})", f"{row['Performance Ratio']:.2f}x")
                 col6.markdown(f"**Performance Status:** {row['Performance Status']}", unsafe_allow_html=True)
 
+        # --- Download Raw Data Button ---
+        csv = filtered_df.to_csv(index=False)
+        st.download_button("Download Raw Data (CSV)", csv, file_name="filtered_data.csv", mime="text/csv")
+
+        st.markdown("---")
+
         # --- Employee Summary (Formatted as Company Overview) ---
         st.subheader("🧑‍💼 Summary by Employee")
         emp_branch_summary = filtered_df.groupby(["EmployeeName", "BranchName"])[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
@@ -219,5 +226,11 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
                 col5.metric(f"Performance Ratio ({row['EmployeeName']})", f"{row['Performance Ratio']:.2f}x")
                 col6.markdown(f"**Performance Status:** {row['Performance Status']}", unsafe_allow_html=True)
 
+        # --- Download Raw Data Button for Employee Summary ---
+        csv = emp_branch_summary.to_csv(index=False)
+        st.download_button("Download Raw Data (Employee Summary) CSV", csv, file_name="employee_summary_data.csv", mime="text/csv")
+
+    else:
+        st.info("👈 Use the filters and click **Fetch Data** to update the dashboard.")
 else:
     st.warning("🚨 Please upload all three CSV files in the sidebar to get started.")
