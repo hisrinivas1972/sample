@@ -48,13 +48,6 @@ def load_data(emp_file, branch_file, trans_file):
 
     return pivot_df
 
-# --- Helper function for performance label ---
-def performance_label(net_income, total_expenses):
-    # If total_expenses is zero, avoid division by zero
-    if total_expenses == 0:
-        return "NPW"
-    return "PW" if net_income >= 3 * total_expenses else "NPW"
-
 # --- If all files uploaded ---
 if uploaded_employees and uploaded_branches and uploaded_transactions:
     df = load_data(uploaded_employees, uploaded_branches, uploaded_transactions)
@@ -108,9 +101,12 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         net_income = total_sales - total_expenses
         avg_customer_rating = 4.69
         total_branches = filtered_df['BranchName'].nunique()
-        top_performing_branches = filtered_df.groupby('BranchName').apply(
-            lambda x: performance_label(x['Net Income'].sum(), x['Expense'].sum() + x['Salary'].sum())
-        ).value_counts().get("PW", 0)
+
+        # Calculate performance multiplier for dashboard-level summary
+        sales_to_expense_ratio = total_sales / total_expenses if total_expenses > 0 else 0
+        overall_performance = "PW" if sales_to_expense_ratio >= 3 else "NPW"
+
+        top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
         total_employees = filtered_df['EmployeeID'].nunique()
 
         # --- Show Metrics ---
@@ -126,65 +122,59 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             col6.metric("Top Performing Branches", f"{top_performing_branches} / {total_branches}")
             col7.metric("Total Employees", total_employees)
 
-        # --- Branch Summary ---
+            # Performance Indicator for overall
+            st.markdown(f"**Overall Company Performance:** {overall_performance}")
+
+        # --- Branch Summary with Performance ---
         st.subheader("📍 Summary by Branch")
         branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
-        # Add performance label column
-        branch_summary['Performance'] = branch_summary.apply(
-            lambda row: performance_label(row['Net Income'], row['Expense'] + row['Salary']),
-            axis=1
-        )
+        # Calculate sales_to_expense_ratio per branch and performance short cut
+        branch_summary['Sales_to_Expense_Ratio'] = branch_summary.apply(
+            lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else 0, axis=1)
+        branch_summary['Performance'] = branch_summary['Sales_to_Expense_Ratio'].apply(lambda x: "PW" if x >= 3 else "NPW")
 
-        # Altair bar chart for branch summary with clickable bars
+        # Altair bar chart for Branch Net Income
         click = alt.selection_single(fields=['BranchName'], bind='legend', name="branch_click", clear="mouseout", empty="none")
 
-        chart = alt.Chart(branch_summary).mark_bar().encode(
-            x=alt.X('BranchName:N', sort='-y'),
-            y='Net Income:Q',
+        branch_chart = alt.Chart(branch_summary).mark_bar().encode(
+            x=alt.X('BranchName', sort='-y'),
+            y='Net Income',
             color=alt.condition(click, alt.value("green"), alt.value("red")),
             tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income', 'Performance'],
             opacity=alt.condition(click, alt.value(1), alt.value(0.3))
         ).add_selection(click).properties(width=700, height=400)
 
-        st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(branch_chart, use_container_width=True)
 
         # Save branch selection in session state
         if click.selected:
             st.session_state.clicked_branch = click.selected['BranchName']
 
-        # Branch summary table with performance shortcut
-        display_branch_summary = branch_summary.copy()
-        display_branch_summary['Performance'] = display_branch_summary['Performance'].replace({'PW': 'Performing Well (PW)', 'NPW': 'Not Performing Well (NPW)'})
-
-        st.dataframe(display_branch_summary.style.format({
+        # Branch summary table with performance
+        st.dataframe(branch_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}'
-        }).set_table_styles([{'selector': 'th.row_heading, td.row_heading, th.blank', 'props': [('display', 'none')]}]))
+        }).hide(axis="index").set_caption("Branch Summary with Performance"))
 
         st.markdown("---")
 
-        # --- Employee Summary ---
+        # --- Employee Summary with Performance ---
         st.subheader("🧑‍💼 Summary by Employee")
         employee_summary = filtered_df.groupby("EmployeeName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
-        # Add performance label column for employees
-        employee_summary['Performance'] = employee_summary.apply(
-            lambda row: performance_label(row['Net Income'], row['Expense'] + row['Salary']),
-            axis=1
-        )
+        employee_summary['Sales_to_Expense_Ratio'] = employee_summary.apply(
+            lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else 0, axis=1)
+        employee_summary['Performance'] = employee_summary['Sales_to_Expense_Ratio'].apply(lambda x: "PW" if x >= 3 else "NPW")
 
-        display_employee_summary = employee_summary.copy()
-        display_employee_summary['Performance'] = display_employee_summary['Performance'].replace({'PW': 'Performing Well (PW)', 'NPW': 'Not Performing Well (NPW)'})
-
-        st.dataframe(display_employee_summary.style.format({
+        st.dataframe(employee_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}'
-        }).set_table_styles([{'selector': 'th.row_heading, td.row_heading, th.blank', 'props': [('display', 'none')]}]))
+        }).hide(axis="index").set_caption("Employee Summary with Performance"))
 
         st.markdown("---")
 
@@ -195,35 +185,29 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             'Expense': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}'
-        }))
+        }).hide(axis="index"))
 
         st.markdown("---")
 
-        # --- Financials by Branch (Bar Chart side by side) ---
+        # --- Financials by Branch: Side-by-side Bar Chart ---
         st.subheader("🏢 Financials by Branch")
+        financial_metrics = branch_summary.melt(
+            id_vars=['BranchName'], 
+            value_vars=['Net Income', 'Expense', 'Revenue'],
+            var_name='Metric', value_name='Amount'
+        )
 
-        # Calculate Good and Review Net Income
-        branch_summary['Net Income Status'] = branch_summary['Performance'].apply(lambda x: 'Net Income (Good)' if x == 'PW' else 'Net Income (Review)')
-        financials_melted = branch_summary.melt(id_vars=['BranchName'], value_vars=['Expense', 'Revenue'], var_name='Metric', value_name='Amount')
+        # Split Net Income into 'Good' and 'Review' based on performance threshold 3X
+        financial_metrics['Metric'] = financial_metrics.apply(
+            lambda row: f"{row['Metric']} (Good)" if (row['Metric'] == 'Net Income' and branch_summary.loc[branch_summary['BranchName'] == row['BranchName'], 'Sales_to_Expense_Ratio'].values[0] >=3)
+            else (f"{row['Metric']} (Review)" if (row['Metric'] == 'Net Income') else row['Metric']),
+            axis=1
+        )
 
-        # Add net income metrics with status
-        net_income_good = branch_summary[branch_summary['Performance'] == 'PW'][['BranchName', 'Net Income']]
-        net_income_good['Metric'] = 'Net Income (Good)'
-
-        net_income_review = branch_summary[branch_summary['Performance'] == 'NPW'][['BranchName', 'Net Income']]
-        net_income_review['Metric'] = 'Net Income (Review)'
-
-        # Combine all metrics
-        combined_metrics = pd.concat([financials_melted, net_income_good.rename(columns={'Net Income': 'Amount'}),
-                                      net_income_review.rename(columns={'Net Income': 'Amount'})], ignore_index=True)
-
-        # Filter out rows with NaN amounts (some branches might not appear in net income good/review)
-        combined_metrics = combined_metrics.dropna(subset=['Amount'])
-
-        bar_chart = alt.Chart(combined_metrics).mark_bar().encode(
-            x=alt.X('BranchName:N', title="Branch"),
-            y=alt.Y('Amount:Q', title="Amount ($)"),
-            color='Metric:N',
+        bar_chart = alt.Chart(financial_metrics).mark_bar().encode(
+            x=alt.X('BranchName:N', title='Branch', sort='-y'),
+            y=alt.Y('Amount:Q', title='Amount ($)'),
+            color=alt.Color('Metric:N', scale=alt.Scale(scheme='category10')),
             tooltip=['BranchName', 'Metric', 'Amount']
         ).properties(width=800, height=400)
 
@@ -231,9 +215,8 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         st.markdown("---")
 
-        # --- 12-Month Company Performance (Net Income Trend) ---
+        # --- 12-Month Company Net Income Trend ---
         st.subheader("📅 12-Month Company Net Income Trend")
-
         monthly_perf = filtered_df.groupby(['Year', 'Month']).agg({
             'Revenue': 'sum',
             'Expense': 'sum',
@@ -241,16 +224,20 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             'Net Income': 'sum'
         }).reset_index()
 
-        monthly_perf['MonthStr'] = monthly_perf.apply(lambda row: f"{row['Year']}-{int(row['Month']):02d}", axis=1)
+        # Prepare MonthStr as proper datetime (first day of the month)
+        monthly_perf['MonthStr'] = pd.to_datetime(
+            monthly_perf['Year'].astype(str) + '-' +
+            monthly_perf['Month'].astype(str).str.zfill(2) + '-01'
+        )
 
         line_chart = alt.Chart(monthly_perf).transform_fold(
             ['Revenue', 'Expense', 'Salary', 'Net Income'],
             as_=['Metric', 'Amount']
         ).mark_line(point=True).encode(
-            x='MonthStr:T',
-            y='Amount:Q',
+            x=alt.X('MonthStr:T', title='Month'),
+            y=alt.Y('Amount:Q', title='Amount ($)'),
             color='Metric:N',
-            tooltip=['MonthStr', 'Metric', 'Amount']
+            tooltip=[alt.Tooltip('MonthStr:T', title='Month'), 'Metric', 'Amount']
         ).properties(width=900, height=400)
 
         st.altair_chart(line_chart, use_container_width=True)
