@@ -5,6 +5,26 @@ import altair as alt
 st.set_page_config(page_title="Branch Performance Dashboard", layout="wide")
 st.title("📊 Company Overview")
 
+# --- Blinking star function ---
+def blinking_star():
+    blinking_css = """
+    <style>
+    @keyframes blink {
+        0% { opacity: 1; }
+        50% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+    .blink {
+        animation: blink 1s infinite;
+        font-size: 24px;
+        color: gold;
+        font-weight: bold;
+    }
+    </style>
+    """
+    st.markdown(blinking_css, unsafe_allow_html=True)
+    return '<span class="blink">⭐✨</span>'
+
 # --- Sidebar: File Uploads ---
 st.sidebar.header("📤 Upload CSV Files")
 
@@ -102,7 +122,6 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         top_performing_branches = filtered_df.groupby('BranchName')['Net Income'].sum().gt(0).sum()
         total_employees = filtered_df['EmployeeID'].nunique()
 
-        # New Performance Ratio and Status (short codes)
         if total_expenses > 0:
             performance_ratio = total_sales / total_expenses
         else:
@@ -121,7 +140,13 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             col5, col6, col7, col8 = st.columns(4)
             col5.metric("Total Branches", total_branches)
             col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
-            col7.metric("Performance Status", performance_status)
+
+            if performance_status == "PW":
+                perf_status_display = blinking_star()
+            else:
+                perf_status_display = "⭐"
+
+            col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
             col8.metric("Total Employees", total_employees)
 
         # --- Branch Summary ---
@@ -136,7 +161,6 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             lambda x: "PW" if x >= 3 else "NPW"
         )
 
-        # Altair bar chart (unchanged)
         click = alt.selection_single(fields=['BranchName'], bind='legend', name="branch_click", clear="mouseout", empty="none")
 
         chart = alt.Chart(branch_summary).mark_bar().encode(
