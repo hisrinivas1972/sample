@@ -151,7 +151,15 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         # --- Branch Summary ---
         st.subheader("📍 Summary by Branch")
+
+        # Calculate summary metrics per branch
         branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
+
+        # Calculate total unique employees per branch
+        emp_count = filtered_df.groupby("BranchName")['EmployeeID'].nunique().reset_index().rename(columns={'EmployeeID': 'Total Employees'})
+
+        # Merge employee count into branch summary
+        branch_summary = branch_summary.merge(emp_count, on='BranchName', how='left')
 
         branch_summary['Performance Ratio'] = branch_summary.apply(
             lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
@@ -167,18 +175,20 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             x='BranchName',
             y='Net Income',
             color=alt.condition(click, alt.value("green"), alt.value("red")),
-            tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income'],
+            tooltip=['BranchName', 'Expense', 'Revenue', 'Salary', 'Net Income', 'Total Employees'],  # Added employees to tooltip
             opacity=alt.condition(click, alt.value(1), alt.value(0.3))
         ).add_selection(click).properties(width=700, height=400)
 
         st.altair_chart(chart, use_container_width=True)
 
+        # Show DataFrame with the new column
         st.dataframe(branch_summary.style.format({
             'Expense': '${:,.2f}',
             'Revenue': '${:,.2f}',
             'Salary': '${:,.2f}',
             'Net Income': '${:,.2f}',
-            'Performance Ratio': '{:.2f}x'
+            'Performance Ratio': '{:.2f}x',
+            'Total Employees': '{:,.0f}'  # Format as integer
         }))
 
         st.markdown("---")
