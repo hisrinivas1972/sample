@@ -20,7 +20,7 @@ def load_data(emp_file, branch_file, trans_file):
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
 
-    df['Date'] = pd.to_datetime(df['Date'])
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
@@ -77,7 +77,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         filtered_df['Net Income'] = filtered_df['Revenue'] - filtered_df['Expense'] - filtered_df['Salary']
 
-        # Dashboard Metrics
+        # --- Metrics ---
         total_sales = filtered_df['Revenue'].sum()
         total_expenses = filtered_df['Expense'].sum() + filtered_df['Salary'].sum()
         net_income = total_sales - total_expenses
@@ -99,7 +99,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         col7.metric("Performance Status", performance_status)
         col8.metric("Total Employees", total_employees)
 
-        # Summary by Branch
+        # --- Summary by Branch ---
         st.subheader("📍 Summary by Branch")
         branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
         branch_summary['Performance Ratio'] = branch_summary.apply(
@@ -116,7 +116,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             'Performance Ratio': '{:.2f}x'
         }))
 
-        # Summary by Employee
+        # --- Summary by Employee ---
         st.subheader("🧑‍💼 Summary by Employee")
         employee_summary = filtered_df.groupby("EmployeeName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
         employee_summary['Performance Ratio'] = employee_summary.apply(
@@ -133,10 +133,14 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             'Performance Ratio': '{:.2f}x'
         }))
 
-        # Financials by Branch - Grouped Bar Chart
+        # --- Financials by Branch Bar Chart ---
         st.subheader("🏢 Financials by Branch")
-        branch_melt = branch_summary.melt(id_vars='BranchName', value_vars=['Revenue', 'Expense', 'Salary', 'Net Income'],
-                                          var_name='Metric', value_name='Amount')
+        branch_melt = branch_summary.melt(
+            id_vars='BranchName',
+            value_vars=['Revenue', 'Expense', 'Salary', 'Net Income'],
+            var_name='Metric',
+            value_name='Amount'
+        )
 
         bar_chart = alt.Chart(branch_melt).mark_bar().encode(
             x=alt.X('BranchName:N', title='Branch'),
@@ -147,11 +151,16 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         st.altair_chart(bar_chart, use_container_width=True)
 
-        # 12-Month Company Performance Chart
+        # --- 12-Month Net Income Trend ---
         st.subheader("📅 12-Month Company Net Income Trend")
         monthly_perf = filtered_df.groupby(['Year', 'Month'])[['Revenue', 'Expense', 'Salary']].sum().reset_index()
+
+        monthly_perf['Month'] = pd.to_numeric(monthly_perf['Month'], errors='coerce')
+        monthly_perf['Year'] = pd.to_numeric(monthly_perf['Year'], errors='coerce')
+        monthly_perf = monthly_perf.dropna(subset=['Year', 'Month'])
+
+        monthly_perf['MonthStr'] = monthly_perf.apply(lambda row: f"{int(row['Year'])}-{int(row['Month']):02d}", axis=1)
         monthly_perf['Net Income'] = monthly_perf['Revenue'] - monthly_perf['Expense'] - monthly_perf['Salary']
-        monthly_perf['MonthStr'] = monthly_perf.apply(lambda row: f"{row['Year']}-{row['Month']:02d}", axis=1)
 
         monthly_chart = alt.Chart(monthly_perf).mark_bar().encode(
             x=alt.X('MonthStr:N', sort=None, title="Month"),
@@ -161,7 +170,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         st.altair_chart(monthly_chart, use_container_width=True)
 
-        # Detailed Transactions
+        # --- Detailed Transactions Table (Optional) ---
         st.subheader("📄 Detailed Transactions by Employee")
         st.dataframe(filtered_df.style.format({
             'Revenue': '${:,.2f}',
