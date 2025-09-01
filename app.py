@@ -137,7 +137,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         performance_status = "PW" if performance_ratio >= 3 else "NPW"
 
-        # --- Show Metrics ---
+        # --- Show Company Overview Metrics ---
         with st.container():
             col1, col2, col3, col4 = st.columns(4)
             col1.metric("Total Sales", f"${total_sales:,.0f}")
@@ -157,7 +157,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
             col8.metric("Total Employees", total_employees)
 
-        # --- Branch Summary ---
+        # --- Branch Summary (Formatted as Company Overview) ---
         st.subheader("📍 Summary by Branch")
         branch_summary = filtered_df.groupby("BranchName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
@@ -178,66 +178,46 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
             lambda ratio: performance_status_display(ratio)
         )
 
-        # Toggle to Show Raw Data
-        show_raw_data_branch = st.checkbox("Show Raw Data (Branch)", value=False)
+        # Show formatted metrics for each branch
+        for index, row in branch_summary.iterrows():
+            with st.container():
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric(f"Total Sales ({row['BranchName']})", f"${row['Revenue']:,.0f}")
+                col2.metric(f"Total Expenses ({row['BranchName']})", f"${row['Expense'] + row['Salary']:,.0f}")
+                col3.metric(f"Net Income ({row['BranchName']})", f"${row['Net Income']:,.0f}")
+                col4.metric(f"Total Employees ({row['BranchName']})", row['Total Employees'])
 
-        if show_raw_data_branch:
-            st.dataframe(branch_summary.drop(columns=["Performance Status"]).style.format({
-                'Expense': '${:,.2f}',
-                'Revenue': '${:,.2f}',
-                'Salary': '${:,.2f}',
-                'Net Income': '${:,.2f}',
-                'Performance Ratio': '{:.2f}x',
-                'Total Employees': '{:,.0f}'  # Format as integer
-            }))
-        else:
-            # Only show summarized data (no raw data)
-            st.dataframe(branch_summary.drop(columns=["Performance Status"]).style.format({
-                'Expense': '${:,.2f}',
-                'Revenue': '${:,.2f}',
-                'Salary': '${:,.2f}',
-                'Net Income': '${:,.2f}',
-                'Performance Ratio': '{:.2f}x',
-                'Total Employees': '{:,.0f}'  # Format as integer
-            }))
+                col5, col6, col7 = st.columns(3)
+                col5.metric(f"Performance Ratio ({row['BranchName']})", f"{row['Performance Ratio']:.2f}x")
+                col6.markdown(f"**Performance Status:** {row['Performance Status']}", unsafe_allow_html=True)
 
-        # --- Employee Summary ---
-        st.subheader("👨‍💼 Summary by Employee")
-        employee_summary = filtered_df.groupby("EmployeeName")[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
+        # --- Employee Summary (Formatted as Company Overview) ---
+        st.subheader("🧑‍💼 Summary by Employee")
+        emp_branch_summary = filtered_df.groupby(["EmployeeName", "BranchName"])[['Expense', 'Revenue', 'Salary', 'Net Income']].sum().reset_index()
 
-        # Calculate Performance Ratio for employees
-        employee_summary['Performance Ratio'] = employee_summary.apply(
+        # Calculate Performance Ratio for each employee
+        emp_branch_summary['Performance Ratio'] = emp_branch_summary.apply(
             lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
             axis=1
         )
 
         # Apply performance status function for stars
-        employee_summary['Performance Status'] = employee_summary['Performance Ratio'].apply(
+        emp_branch_summary['Performance Status'] = emp_branch_summary['Performance Ratio'].apply(
             lambda ratio: performance_status_display(ratio)
         )
 
-        # Toggle to Show Raw Data
-        show_raw_data_employee = st.checkbox("Show Raw Data (Employee)", value=False)
+        # Show formatted metrics for each employee
+        for index, row in emp_branch_summary.iterrows():
+            with st.container():
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric(f"Total Sales ({row['EmployeeName']})", f"${row['Revenue']:,.0f}")
+                col2.metric(f"Total Expenses ({row['EmployeeName']})", f"${row['Expense'] + row['Salary']:,.0f}")
+                col3.metric(f"Net Income ({row['EmployeeName']})", f"${row['Net Income']:,.0f}")
+                col4.metric(f"Branch ({row['EmployeeName']})", row['BranchName'])
 
-        if show_raw_data_employee:
-            st.dataframe(employee_summary.drop(columns=["Performance Status"]).style.format({
-                'Expense': '${:,.2f}',
-                'Revenue': '${:,.2f}',
-                'Salary': '${:,.2f}',
-                'Net Income': '${:,.2f}',
-                'Performance Ratio': '{:.2f}x'
-            }))
-        else:
-            # Only show summarized data (no raw data)
-            st.dataframe(employee_summary.drop(columns=["Performance Status"]).style.format({
-                'Expense': '${:,.2f}',
-                'Revenue': '${:,.2f}',
-                'Salary': '${:,.2f}',
-                'Net Income': '${:,.2f}',
-                'Performance Ratio': '{:.2f}x'
-            }))
+                col5, col6, col7 = st.columns(3)
+                col5.metric(f"Performance Ratio ({row['EmployeeName']})", f"{row['Performance Ratio']:.2f}x")
+                col6.markdown(f"**Performance Status:** {row['Performance Status']}", unsafe_allow_html=True)
 
-    else:
-        st.info("👈 Use the filters and click **Fetch Data** to update the dashboard.")
 else:
     st.warning("🚨 Please upload all three CSV files in the sidebar to get started.")
