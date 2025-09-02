@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+import altair as alt
 
 st.set_page_config(page_title="Branch Performance Dashboard", layout="wide")
 st.title("📊 Company Overview")
@@ -57,7 +58,7 @@ def load_data(emp_file, branch_file, trans_file):
 
     # Pivot table by transaction type
     pivot_df = df.pivot_table(
-        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month'],
+        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month', 'Date'],
         columns='Type',
         values='Amount',
         aggfunc='sum',
@@ -78,6 +79,44 @@ def load_data(emp_file, branch_file, trans_file):
     pivot_df['Net Income'] = pivot_df['Revenue'] - pivot_df['Expense'] - pivot_df['Salary']
 
     return pivot_df
+
+# --- Visualization Functions ---
+
+def financials_by_branch_chart(df):
+    summary = df.groupby("BranchName")[["Revenue", "Expense", "Salary"]].sum().reset_index()
+    summary_melted = summary.melt(id_vars="BranchName", var_name="Financial Type", value_name="Amount")
+
+    chart = alt.Chart(summary_melted).mark_bar().encode(
+        x=alt.X("BranchName:N", title="Branch", sort='-y'),
+        y=alt.Y("Amount:Q", title="Amount ($)"),
+        color="Financial Type:N",
+        tooltip=["BranchName", "Financial Type", "Amount"]
+    ).properties(
+        width=400,
+        height=300,
+        title="📊 Financials by Branch"
+    )
+
+    return chart
+
+def monthly_company_performance_chart(df):
+    df['Month_Year'] = df['Date'].dt.to_period('M').astype(str)
+
+    monthly = df.groupby("Month_Year")[["Revenue", "Expense"]].sum().reset_index()
+    monthly_melted = monthly.melt(id_vars="Month_Year", var_name="Type", value_name="Amount")
+
+    chart = alt.Chart(monthly_melted).mark_bar().encode(
+        x=alt.X("Month_Year:N", title="Month", sort=monthly['Month_Year'].tolist()),
+        y=alt.Y("Amount:Q", title="Amount ($)"),
+        color="Type:N",
+        tooltip=["Month_Year", "Type", "Amount"]
+    ).properties(
+        width=500,
+        height=300,
+        title="📅 12-Month Company Performance"
+    )
+
+    return chart
 
 # --- Main App Logic ---
 if uploaded_employees and uploaded_branches and uploaded_transactions:
@@ -115,6 +154,16 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
         col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
         col8.metric("Total Employees", total_employees)
+
+        # --- Visual Charts ---
+        st.markdown("## 📈 Financial Visualizations")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.altair_chart(financials_by_branch_chart(df), use_container_width=True)
+
+        with col2:
+            st.altair_chart(monthly_company_performance_chart(df), use_container_width=True)
 
     else:
         # Branch selected
