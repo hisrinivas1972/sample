@@ -189,7 +189,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         performance_status = "PW" if performance_ratio >= 3 else "NPW"
         perf_status_display = blinking_star() if performance_status == "PW" else "⭐"
 
-        st.subheader("📊 Company Overview Metrics")
+        
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Total Sales", f"${total_sales:,.0f}")
         col2.metric("Total Expenses", f"${total_expenses:,.0f}")
