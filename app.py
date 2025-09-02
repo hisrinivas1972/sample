@@ -5,7 +5,6 @@ import altair as alt
 st.set_page_config(page_title="Branch Performance Dashboard", layout="wide")
 st.title("📊 Company Overview")
 
-# --- Blinking star function ---
 def blinking_star():
     blinking_css = """
     <style>
@@ -25,13 +24,11 @@ def blinking_star():
     st.markdown(blinking_css, unsafe_allow_html=True)
     return '<span class="blink">⭐✨</span>'
 
-# --- Sidebar: File Uploads ---
 st.sidebar.header("📤 Upload CSV Files")
 uploaded_employees = st.sidebar.file_uploader("Upload Employees CSV", type="csv")
 uploaded_branches = st.sidebar.file_uploader("Upload Branches CSV", type="csv")
 uploaded_transactions = st.sidebar.file_uploader("Upload Transactions CSV", type="csv")
 
-# --- Function to Load and Process Data ---
 def load_data(emp_file, branch_file, trans_file):
     employees = pd.read_csv(emp_file)
     branches = pd.read_csv(branch_file)
@@ -44,7 +41,6 @@ def load_data(emp_file, branch_file, trans_file):
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    # --- Safe pivot index handling ---
     pivot_index = ['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month', 'Date']
     if 'Position' in df.columns:
         pivot_index.insert(2, 'Position')
@@ -66,17 +62,78 @@ def load_data(emp_file, branch_file, trans_file):
     pivot_df['Net Income'] = pivot_df['Revenue'] - pivot_df['Expense'] - pivot_df['Salary']
     return pivot_df
 
-# --- Chart Functions (Placeholders if omitted) ---
+# ---- Chart: Financials by Branch ----
 def financials_by_branch_chart(df):
-    return alt.Chart(pd.DataFrame({'x': [], 'y': []})).mark_bar()
+    # Group by BranchName, sum revenue, expense, salary
+    summary = df.groupby('BranchName').agg({
+        'Revenue': 'sum',
+        'Expense': 'sum',
+        'Salary': 'sum'
+    }).reset_index()
+    summary = summary.melt(id_vars='BranchName', value_vars=['Revenue', 'Expense', 'Salary'],
+                           var_name='Type', value_name='Amount')
 
+    chart = alt.Chart(summary).mark_bar().encode(
+        x=alt.X('BranchName:N', sort='-y', title='Branch'),
+        y=alt.Y('Amount:Q', title='Amount ($)'),
+        color=alt.Color('Type:N', title='Financial Type'),
+        tooltip=['BranchName', 'Type', alt.Tooltip('Amount', format='$,.2f')]
+    ).properties(
+        title="Financial Overview by Branch",
+        width=700,
+        height=400
+    )
+    return chart
+
+# ---- Chart: Monthly Company Performance ----
 def monthly_company_performance_chart(df):
-    return alt.Chart(pd.DataFrame({'x': [], 'y': []})).mark_line()
+    # Aggregate monthly revenue and expenses for the company
+    monthly = df.groupby(['Year', 'Month']).agg({
+        'Revenue': 'sum',
+        'Expense': 'sum',
+        'Salary': 'sum'
+    }).reset_index()
+    monthly['Date'] = pd.to_datetime(monthly[['Year', 'Month']].assign(DAY=1))
 
+    monthly = monthly.melt(id_vars='Date', value_vars=['Revenue', 'Expense', 'Salary'],
+                           var_name='Type', value_name='Amount')
+
+    chart = alt.Chart(monthly).mark_line(point=True).encode(
+        x=alt.X('Date:T', title='Month'),
+        y=alt.Y('Amount:Q', title='Amount ($)'),
+        color=alt.Color('Type:N', title='Financial Type'),
+        tooltip=[alt.Tooltip('Date', title='Month', format='%b %Y'), 'Type', alt.Tooltip('Amount', format='$,.2f')]
+    ).properties(
+        title="Monthly Company Performance",
+        width=700,
+        height=400
+    )
+    return chart
+
+# ---- Chart: Monthly Performance for a Branch ----
 def monthly_performance_for_branch_chart(df, branch_name):
-    return alt.Chart(pd.DataFrame({'x': [], 'y': []})).mark_line()
+    branch_monthly = df[df['BranchName'] == branch_name].groupby(['Year', 'Month']).agg({
+        'Revenue': 'sum',
+        'Expense': 'sum',
+        'Salary': 'sum'
+    }).reset_index()
+    branch_monthly['Date'] = pd.to_datetime(branch_monthly[['Year', 'Month']].assign(DAY=1))
 
-# --- Main App Logic ---
+    branch_monthly = branch_monthly.melt(id_vars='Date', value_vars=['Revenue', 'Expense', 'Salary'],
+                                        var_name='Type', value_name='Amount')
+
+    chart = alt.Chart(branch_monthly).mark_line(point=True).encode(
+        x=alt.X('Date:T', title='Month'),
+        y=alt.Y('Amount:Q', title='Amount ($)'),
+        color=alt.Color('Type:N', title='Financial Type'),
+        tooltip=[alt.Tooltip('Date', title='Month', format='%b %Y'), 'Type', alt.Tooltip('Amount', format='$,.2f')]
+    ).properties(
+        title=f"Monthly Performance for {branch_name}",
+        width=700,
+        height=400
+    )
+    return chart
+
 if uploaded_employees and uploaded_branches and uploaded_transactions:
     df = load_data(uploaded_employees, uploaded_branches, uploaded_transactions)
 
@@ -137,7 +194,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         st.markdown("### 📈 Visualizations")
         st.altair_chart(monthly_performance_for_branch_chart(branch_df, selected_branch), use_container_width=True)
 
-        # --- Individual Performance Summary ---
+        # Individual Performance Table
         st.markdown(f"### 🧑‍💼 Individual Performance: {selected_branch}")
 
         group_fields = ['EmployeeID', 'EmployeeName']
