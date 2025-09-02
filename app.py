@@ -42,11 +42,9 @@ uploaded_branches = st.sidebar.file_uploader("Upload Branches CSV", type="csv")
 uploaded_transactions = st.sidebar.file_uploader("Upload Transactions CSV", type="csv")
 
 # --- Function to Load and Process Data ---
-def load_data(emp_file, branch_file, trans_file):
-    employees = pd.read_csv(emp_file)
-    branches = pd.read_csv(branch_file)
-    transactions = pd.read_csv(trans_file)
-
+def load_data(employees, branches, transactions):
+    # employees, branches, transactions are DataFrames already loaded
+    
     # Merge datasets
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
@@ -58,7 +56,7 @@ def load_data(emp_file, branch_file, trans_file):
 
     # Pivot table by transaction type
     pivot_df = df.pivot_table(
-        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month', 'Date'],
+        index=['EmployeeID', 'EmployeeName', 'Position', 'BranchName', 'Year', 'Month', 'Date'],
         columns='Type',
         values='Amount',
         aggfunc='sum',
@@ -77,9 +75,6 @@ def load_data(emp_file, branch_file, trans_file):
             pivot_df[col] = pd.to_numeric(pivot_df[col], errors='coerce').fillna(0)
 
     pivot_df['Net Income'] = pivot_df['Revenue'] - pivot_df['Expense'] - pivot_df['Salary']
-
-    # Rename Revenue column to Sales for clarity downstream (optional)
-    pivot_df.rename(columns={'Revenue': 'Revenue'}, inplace=True)
 
     return pivot_df
 
@@ -219,7 +214,13 @@ def monthly_performance_for_branch_chart(df, branch_name):
 
 # --- Main App Logic ---
 if uploaded_employees and uploaded_branches and uploaded_transactions:
-    df = load_data(uploaded_employees, uploaded_branches, uploaded_transactions)
+    # Read files once here
+    employees_df = pd.read_csv(uploaded_employees)
+    branches_df = pd.read_csv(uploaded_branches)
+    transactions_df = pd.read_csv(uploaded_transactions)
+
+    # Load and merge data
+    df = load_data(employees_df, branches_df, transactions_df)
 
     branches = sorted(df['BranchName'].dropna().unique())
     overview_options = ["📊 Company Overview"] + [f"📍 {branch}" for branch in branches]
@@ -297,54 +298,10 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         # --- Individual Employee Performance Table ---
         st.markdown("### 🧑‍💼 Individual Performance")
 
-        # Aggregate transactions by employee for the selected branch
-        emp_group = branch_df.groupby(['EmployeeID', 'EmployeeName']).agg({
-            'Revenue': 'sum',
-            'Expense': 'sum',
-            'Salary': 'sum',
-            'Net Income': 'sum',
-            'Date': 'count'  # Number of transactions
-        }).reset_index().rename(columns={'Date': 'Transactions'})
-
-        # Merge with employee position info from original employee CSV
-        employees_df = pd.read_csv(uploaded_employees)
-        emp_positions = employees_df[['EmployeeID', 'Position', 'EmployeeName']].drop_duplicates()
-
-        emp_perf = pd.merge(emp_group, emp_positions, on=['EmployeeID', 'EmployeeName'], how='left')
-
-        # Calculate Status (Sales/Expense ratio)
-        def calc_status(row):
-            if row['Expense'] > 0:
-                return f"{row['Revenue'] / row['Expense']:.1f}X"
-            else:
-                return "∞"
-
-        emp_perf['Status (Sales/Expense)'] = emp_perf.apply(calc_status, axis=1)
-
-        # Add placeholder Customer Rating (if no data available)
-        emp_perf['Customer Rating'] = "4.8 / 5.0"
-
-        # Select and reorder columns for display
-        display_cols = [
-            'EmployeeName', 'Position', 'Revenue', 'Expense', 'Salary',
-            'Net Income', 'Status (Sales/Expense)', 'Customer Rating', 'Transactions'
-        ]
-
-        display_df = emp_perf[display_cols].copy()
-
-        # Rename columns for better display
-        display_df.rename(columns={
-            'EmployeeName': 'Employee',
-            'Revenue': 'Sales',
-            'Expense': 'Expenses'
-        }, inplace=True)
-
-        # Format currency columns
-        for col in ['Sales', 'Expenses', 'Salary', 'Net Income']:
-            display_df[col] = display_df[col].apply(lambda x: f"${x:,.0f}")
-
-        # Show the dataframe sorted by Sales descending
-        st.dataframe(display_df.sort_values(by='Sales', ascending=False).reset_index(drop=True))
+        # Select columns to show in the individual performance table
+        individual_cols = ['EmployeeName', 'Position', 'Revenue', 'Expense', 'Salary', 'Net Income', 'Date']
+        # Sorting by date descending
+        st.dataframe(branch_df[individual_cols].sort_values(by='Date', ascending=False))
 
 else:
     st.info("Please upload all three CSV files (Employees, Branches, Transactions) from the sidebar to continue.")
