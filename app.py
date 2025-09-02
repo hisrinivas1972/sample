@@ -243,13 +243,11 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         col3.metric("Net Income", f"${net_income:,.0f}")
         col4.metric("Avg. Customer Rating", f"{avg_customer_rating}")
 
-
         col5, col6, col7, col8 = st.columns(4)
         col5.metric("Total Branches", f"{total_branches}")
         col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
         col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
         col8.metric("Total Employees", total_employees)
-
 
         st.markdown("### 📈 Visualizations")
 
@@ -273,28 +271,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         performance_status = "PW" if performance_ratio >= 3 else "NPW"
         perf_status_display = blinking_star() if performance_status == "PW" else ("⭐" if performance_ratio > 1 else "")
 
-        st.header(f"📍 Branch Overview: {selected_branch}")
-
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Total Sales", f"${total_sales:,.0f}")
-        col2.metric("Total Expenses", f"${total_expenses:,.0f}")
-        col3.metric("Net Income", f"${net_income:,.0f}")
-        col4.metric("Avg. Customer Rating", f"{avg_customer_rating}")
-
-
-        col5, col6, col7, col8 = st.columns(4)
-        col5.metric("Total Employees", f"{total_employees}")
-        col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
-        col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
-        col8.metric("Total Employees", total_employees)
-
-        st.markdown("### 📈 Visualizations")
-
-        st.altair_chart(monthly_performance_for_branch_chart(branch_df, selected_branch), use_container_width=True)
-
-        # --- NEW: Individual Employee Performance Table (aggregated by Employee) ---
-        st.markdown("### 🧑‍💼 Individual Performance")
-
+        # Aggregate individual employee performance
         agg_cols = ['EmployeeID', 'EmployeeName']
         agg_df = branch_df.groupby(agg_cols).agg({
             'Revenue': 'sum',
@@ -304,23 +281,54 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         agg_df['Net Income'] = agg_df['Revenue'] - agg_df['Expense'] - agg_df['Salary']
 
-        # Calculate performance ratio (Revenue / (Expense + Salary)), handle divide by zero
         agg_df['Performance Ratio'] = agg_df.apply(
             lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
             axis=1
         )
 
-        # Format Status as rounded 'X' times
-        agg_df['Status'] = agg_df['Performance Ratio'].apply(lambda x: f"{x:.1f}x" if x != float('inf') else "∞")
+        # Employees needing review (performance ratio below 3)
+        needs_review_df = agg_df[agg_df['Performance Ratio'] < 3][['EmployeeID', 'EmployeeName']]
 
-        # Format currency columns for display
+        # Prepare display string for needs review employees
+        if not needs_review_df.empty:
+            needs_review_str = "\n".join(
+                f"- {row.EmployeeID}: {row.EmployeeName}" for row in needs_review_df.itertuples()
+            )
+        else:
+            needs_review_str = "None 🎉"
+
+        # Display branch overview metrics
+        st.header(f"📍 Branch Overview: {selected_branch}")
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Total Sales", f"${total_sales:,.0f}")
+        col2.metric("Total Expenses", f"${total_expenses:,.0f}")
+        col3.metric("Net Income", f"${net_income:,.0f}")
+        col4.metric("Avg. Customer Rating", f"{avg_customer_rating}")
+
+        col5, col6, col7, col8 = st.columns(4)
+        col5.metric("Total Employees", f"{total_employees}")
+        col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
+        col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
+        col8.markdown(f"**Needs Review:**\n{needs_review_str}")
+
+        st.markdown("### 📈 Visualizations")
+        st.altair_chart(monthly_performance_for_branch_chart(branch_df, selected_branch), use_container_width=True)
+
+        # Individual Employee Performance Table
+        st.markdown("### 🧑‍💼 Individual Performance")
+
+        # Format currency for display
         for col in ['Revenue', 'Expense', 'Salary', 'Net Income']:
             agg_df[col] = agg_df[col].apply(lambda x: f"${x:,.0f}")
 
-        # Drop the raw Performance Ratio column for clean display, keep Status instead
+        # Format status as rounded 'X' times or infinity
+        agg_df['Status'] = agg_df['Performance Ratio'].apply(lambda x: f"{x:.1f}x" if x != float('inf') else "∞")
+
+        # Drop raw Performance Ratio for cleaner display
         agg_df = agg_df.drop(columns=['Performance Ratio'])
 
         st.dataframe(agg_df.sort_values(by='Net Income', ascending=False))
 
 else:
-    st.info("Please upload all three CSV files (Employees, Branches, Transactions) from the sidebar to continue.")
+    st.warning("Please upload all three CSV files in the sidebar to proceed.")
