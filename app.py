@@ -292,7 +292,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         st.altair_chart(monthly_performance_for_branch_chart(branch_df, selected_branch), use_container_width=True)
 
         # --- NEW: Individual Employee Performance Table (aggregated by Employee) ---
-        st.markdown("### 🧑‍💼 Individual Performance (Aggregated)")
+        st.markdown("### 🧑‍💼 Individual Performance")
 
         agg_cols = ['EmployeeID', 'EmployeeName']
         agg_df = branch_df.groupby(agg_cols).agg({
