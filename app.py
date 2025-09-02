@@ -42,9 +42,11 @@ uploaded_branches = st.sidebar.file_uploader("Upload Branches CSV", type="csv")
 uploaded_transactions = st.sidebar.file_uploader("Upload Transactions CSV", type="csv")
 
 # --- Function to Load and Process Data ---
-def load_data(employees, branches, transactions):
-    # employees, branches, transactions are DataFrames already loaded
-    
+def load_data(emp_file, branch_file, trans_file):
+    employees = pd.read_csv(emp_file)
+    branches = pd.read_csv(branch_file)
+    transactions = pd.read_csv(trans_file)
+
     # Merge datasets
     emp_branch = pd.merge(employees, branches, on='BranchID', how='left')
     df = pd.merge(transactions, emp_branch, on='EmployeeID', how='left')
@@ -56,7 +58,7 @@ def load_data(employees, branches, transactions):
 
     # Pivot table by transaction type
     pivot_df = df.pivot_table(
-        index=['EmployeeID', 'EmployeeName', 'Position', 'BranchName', 'Year', 'Month', 'Date'],
+        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Year', 'Month', 'Date'],
         columns='Type',
         values='Amount',
         aggfunc='sum',
@@ -214,13 +216,7 @@ def monthly_performance_for_branch_chart(df, branch_name):
 
 # --- Main App Logic ---
 if uploaded_employees and uploaded_branches and uploaded_transactions:
-    # Read files once here
-    employees_df = pd.read_csv(uploaded_employees)
-    branches_df = pd.read_csv(uploaded_branches)
-    transactions_df = pd.read_csv(uploaded_transactions)
-
-    # Load and merge data
-    df = load_data(employees_df, branches_df, transactions_df)
+    df = load_data(uploaded_employees, uploaded_branches, uploaded_transactions)
 
     branches = sorted(df['BranchName'].dropna().unique())
     overview_options = ["📊 Company Overview"] + [f"📍 {branch}" for branch in branches]
@@ -295,12 +291,14 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         st.altair_chart(monthly_performance_for_branch_chart(branch_df, selected_branch), use_container_width=True)
 
-        # --- Individual Employee Performance Table ---
+        # --- Individual Employee Performance Table (no Status column) ---
         st.markdown("### 🧑‍💼 Individual Performance")
 
-        # Select columns to show in the individual performance table
-        individual_cols = ['EmployeeName', 'Position', 'Revenue', 'Expense', 'Salary', 'Net Income', 'Date']
-        # Sorting by date descending
+        individual_cols = ['Date', 'EmployeeID', 'EmployeeName', 'Revenue', 'Expense', 'Salary', 'Net Income']
+
+        # Format Date for readability
+        branch_df['Date'] = branch_df['Date'].dt.strftime('%Y-%m-%d')
+
         st.dataframe(branch_df[individual_cols].sort_values(by='Date', ascending=False))
 
 else:
