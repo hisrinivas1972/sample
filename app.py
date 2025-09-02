@@ -247,7 +247,7 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
         col5, col6, col7, col8 = st.columns(4)
         col5.metric("Total Branches", f"{total_branches}")
         col6.metric("Performance Ratio", f"{performance_ratio:.2f}x")
-        col7.metric((f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
+        col7.markdown(f"**Performance Status:** {perf_status_display}", unsafe_allow_html=True)
         col8.metric("Total Employees", total_employees)
 
 
