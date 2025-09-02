@@ -142,7 +142,7 @@ def show_employee_table(df):
 
     emp_summary["Net Income"] = emp_summary["Revenue"] - emp_summary["Expense"] - emp_summary["Salary"]
     emp_summary["Performance Ratio"] = emp_summary["Revenue"] / (emp_summary["Expense"] + emp_summary["Salary"]).replace(0, 1)
-    
+    emp_summary["Status"] = emp_summary["Performance Ratio"].apply(performance_status_display)
     emp_summary["Customer Rating"] = 4.69  # Placeholder
 
     st.markdown("### 🧑‍💼 Individual Performance")
