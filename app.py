@@ -25,21 +25,14 @@ def blinking_star():
     st.markdown(blinking_css, unsafe_allow_html=True)
     return '<span class="blink">⭐✨</span>'
 
-def performance_status_display(ratio):
-    if ratio >= 3:
-        return blinking_star()
-    elif ratio > 1:
-        return "⭐"
-    else:
-        return ""
-
-# --- File Uploads ---
+# --- Sidebar: File Uploads ---
 st.sidebar.header("📤 Upload CSV Files")
+
 uploaded_employees = st.sidebar.file_uploader("Upload Employees CSV", type="csv")
 uploaded_branches = st.sidebar.file_uploader("Upload Branches CSV", type="csv")
 uploaded_transactions = st.sidebar.file_uploader("Upload Transactions CSV", type="csv")
 
-# --- Load and Prepare Data ---
+# --- Load and process data ---
 def load_data(emp_file, branch_file, trans_file):
     employees = pd.read_csv(emp_file)
     branches = pd.read_csv(branch_file)
@@ -50,31 +43,31 @@ def load_data(emp_file, branch_file, trans_file):
 
     df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
     df.dropna(subset=['Date'], inplace=True)
+
     df['Year'] = df['Date'].dt.year
     df['Month'] = df['Date'].dt.month
 
-    # Pivot transactions by Type for revenue, expense, salary
     pivot_df = df.pivot_table(
-        index=['EmployeeID', 'EmployeeName', 'Position', 'BranchName', 'Date'],
+        index=['EmployeeID', 'EmployeeName', 'BranchName', 'Date'],
         columns='Type',
         values='Amount',
         aggfunc='sum',
         fill_value=0
     ).reset_index()
 
-    pivot_df.columns.name = None
+    pivot_df.columns = [col if not isinstance(col, tuple) else col[1] if col[1] else col[0] for col in pivot_df.columns]
+
     for col in ['Revenue', 'Expense', 'Salary']:
         if col not in pivot_df.columns:
             pivot_df[col] = 0
+        else:
+            pivot_df[col] = pd.to_numeric(pivot_df[col], errors='coerce').fillna(0)
 
     pivot_df['Net Income'] = pivot_df['Revenue'] - pivot_df['Expense'] - pivot_df['Salary']
-    pivot_df['Month_Year'] = pivot_df['Date'].dt.to_period('M').astype(str)
-
-    df['Month_Year'] = df['Date'].dt.to_period('M').astype(str)
 
     return df, pivot_df
 
-# --- Charts ---
+# --- Financials by branch chart ---
 def financials_by_branch_chart(df):
     summary = df.groupby("BranchName")[["Revenue", "Expense", "Salary"]].sum().reset_index()
     summary["Total Expenses"] = summary["Expense"] + summary["Salary"]
@@ -94,8 +87,9 @@ def financials_by_branch_chart(df):
         else row["Metric"]
     ), axis=1)
 
-    color_scale = alt.Scale(domain=["Net Income (Good)", "Net Income (Review)", "Total Expenses", "Revenue"],
-                            range=["#2ecc71", "#f1c40f", "#e74c3c", "#9b59b6"])
+    color_scale = alt.Scale(domain=[
+        "Net Income (Good)", "Net Income (Review)", "Total Expenses", "Revenue"
+    ], range=["#2ecc71", "#f1c40f", "#e74c3c", "#9b59b6"])
 
     chart = alt.Chart(bar_df).mark_bar().encode(
         x=alt.X("BranchName:N", title="Branch", axis=alt.Axis(labelAngle=-30)),
@@ -104,11 +98,16 @@ def financials_by_branch_chart(df):
         tooltip=["BranchName", "Metric", "Amount"],
         xOffset='Display Label:N'
     ).properties(
-        width=600, height=400, title="📊 Financials by Branch"
+        width=600,
+        height=400,
+        title="📊 Financials by Branch"
     )
+
     return chart
 
-def monthly_performance_chart(df, title="📅 12-Month Performance"):
+# --- 12-Month Company Performance chart ---
+def monthly_company_performance_chart(df):
+    df['Month_Year'] = df['Date'].dt.to_period('M').astype(str)
     monthly = df.groupby("Month_Year").agg({
         "Revenue": "sum",
         "Expense": "sum",
@@ -126,12 +125,15 @@ def monthly_performance_chart(df, title="📅 12-Month Performance"):
         value_name="Amount"
     )
 
-    color_scale = alt.Scale(domain=["Gross Sales", "Total Expenses"], range=["#9b59b6", "#e74c3c"])
+    bar_color_scale = alt.Scale(
+        domain=["Gross Sales", "Total Expenses"],
+        range=["#9b59b6", "#e74c3c"]
+    )
 
     bar_chart = alt.Chart(bar_df).mark_bar().encode(
         x=alt.X("Month_Year:N", title="Month", axis=alt.Axis(labelAngle=-45)),
         y=alt.Y("Amount:Q", title="Amount ($)", stack=None),
-        color=alt.Color("Metric:N", scale=color_scale),
+        color=alt.Color("Metric:N", scale=bar_color_scale, title=""),
         xOffset="Metric:N",
         tooltip=["Month_Year", "Metric", "Amount"]
     )
@@ -143,114 +145,132 @@ def monthly_performance_chart(df, title="📅 12-Month Performance"):
         tooltip=["Month_Year", "Net Sales"]
     )
 
-    return alt.layer(bar_chart, line_chart).properties(width=700, height=400, title=title)
+    chart = alt.layer(bar_chart, line_chart).properties(
+        width=700,
+        height=400,
+        title="📅 12-Month Company Performance"
+    )
 
-# --- Main App Logic ---
+    return chart
+
+# --- 12-Month Branch Performance chart ---
+def monthly_performance_for_branch_chart(df, branch_name):
+    df['Month_Year'] = df['Date'].dt.to_period('M').astype(str)
+    monthly = df.groupby("Month_Year").agg({
+        "Revenue": "sum",
+        "Expense": "sum",
+        "Salary": "sum"
+    }).reset_index()
+
+    monthly["Gross Sales"] = monthly["Revenue"]
+    monthly["Total Expenses"] = monthly["Expense"] + monthly["Salary"]
+    monthly["Net Sales"] = monthly["Revenue"] - monthly["Total Expenses"]
+
+    bar_df = monthly.melt(
+        id_vars=["Month_Year", "Net Sales"],
+        value_vars=["Gross Sales", "Total Expenses"],
+        var_name="Metric",
+        value_name="Amount"
+    )
+
+    bar_color_scale = alt.Scale(
+        domain=["Gross Sales", "Total Expenses"],
+        range=["#9b59b6", "#e74c3c"]
+    )
+
+    bar_chart = alt.Chart(bar_df).mark_bar().encode(
+        x=alt.X("Month_Year:N", title="Month", axis=alt.Axis(labelAngle=-45)),
+        y=alt.Y("Amount:Q", title="Amount ($)", stack=None),
+        color=alt.Color("Metric:N", scale=bar_color_scale, title=""),
+        xOffset="Metric:N",
+        tooltip=["Month_Year", "Metric", "Amount"]
+    )
+
+    line_chart = alt.Chart(monthly).mark_line(point=alt.OverlayMarkDef(color="#2ecc71", filled=True)).encode(
+        x=alt.X("Month_Year:N"),
+        y=alt.Y("Net Sales:Q"),
+        color=alt.value("#2ecc71"),
+        tooltip=["Month_Year", "Net Sales"]
+    )
+
+    chart = alt.layer(bar_chart, line_chart).properties(
+        width=700,
+        height=400,
+        title=f"📅 12-Month Performance: {branch_name}"
+    )
+
+    return chart
+
+# --- Main App ---
 if uploaded_employees and uploaded_branches and uploaded_transactions:
     raw_df, pivot_df = load_data(uploaded_employees, uploaded_branches, uploaded_transactions)
 
     branches = sorted(pivot_df['BranchName'].dropna().unique())
-    overview_options = ["📊 Company Overview"] + [f"📍 {b}" for b in branches]
-    selected = st.sidebar.radio("📋 Select Overview", overview_options)
+    overview_options = ["📊 Company Overview"] + [f"📍 {branch}" for branch in branches]
 
-    if selected == "📊 Company Overview":
-        total_sales = pivot_df['Revenue'].sum()
-        total_expenses = pivot_df['Expense'].sum() + pivot_df['Salary'].sum()
-        net_income = total_sales - total_expenses
-        avg_rating = 4.69
-        total_branches = pivot_df['BranchName'].nunique()
-        total_employees = pivot_df['EmployeeID'].nunique()
-        ratio = total_sales / total_expenses if total_expenses > 0 else float('inf')
-        status_display = blinking_star() if ratio >= 3 else ("⭐" if ratio > 1 else "")
+    st.sidebar.header("📋 Select Overview")
+    selected_overview = st.sidebar.radio("Choose Overview", overview_options)
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Sales", f"${total_sales:,.0f}")
-        col2.metric("Total Expenses", f"${total_expenses:,.0f}")
-        col3.metric("Net Income", f"${net_income:,.0f}")
+    if selected_overview == "📊 Company Overview":
+        # Company-wide summary (branch level)
+        summary = pivot_df.groupby("BranchName")[["Revenue", "Expense", "Salary", "Net Income"]].sum().reset_index()
 
-        col4, col5, col6 = st.columns(3)
-        col4.metric("Avg. Customer Rating", f"{avg_rating}")
-        col5.metric("Total Branches", total_branches)
-        col6.metric("Performance Ratio", f"{ratio:.2f}x")
+        # Show blinking star for branches with positive Net Income
+        summary["Star"] = summary["Net Income"].apply(lambda x: blinking_star() if x > 0 else "")
 
-        st.markdown(f"**Performance Status:** {status_display}", unsafe_allow_html=True)
-        st.metric("Total Employees", total_employees)
-
-        st.markdown("### 📈 Visualizations")
+        # Branch Financials chart
         st.altair_chart(financials_by_branch_chart(pivot_df), use_container_width=True)
-        st.altair_chart(monthly_performance_chart(pivot_df, "📅 12-Month Company Performance"), use_container_width=True)
+
+        # 12-month company performance
+        st.altair_chart(monthly_company_performance_chart(raw_df), use_container_width=True)
+
+        # Summary table (branch level only)
+        st.subheader("Branch Summary")
+        display_summary = summary[["BranchName", "Revenue", "Expense", "Salary", "Net Income", "Star"]]
+        display_summary = display_summary.rename(columns={
+            "BranchName": "Branch",
+            "Revenue": "Revenue ($)",
+            "Expense": "Expense ($)",
+            "Salary": "Salary ($)",
+            "Net Income": "Net Income ($)",
+            "Star": "Status"
+        })
+        st.write(display_summary.style.format({
+            "Revenue ($)": "${:,.2f}",
+            "Expense ($)": "${:,.2f}",
+            "Salary ($)": "${:,.2f}",
+            "Net Income ($)": "${:,.2f}"
+        }).hide(axis="index").set_properties(subset=["Status"], **{'text-align': 'center'}).set_table_styles([
+            {'selector': 'th', 'props': [('text-align', 'center')]}
+        ]), unsafe_allow_html=True)
 
     else:
-        branch = selected.replace("📍 ", "")
-        branch_df = pivot_df[pivot_df['BranchName'] == branch]
-        raw_branch_df = raw_df[raw_df['BranchName'] == branch]
+        # Branch Overview: Show individual employee performance without "Status"
+        branch_name = selected_overview.replace("📍 ", "")
+        st.header(f"Branch Overview: {branch_name}")
 
-        total_sales = branch_df['Revenue'].sum()
-        total_expenses = branch_df['Expense'].sum() + branch_df['Salary'].sum()
-        net_income = total_sales - total_expenses
-        total_employees = branch_df['EmployeeID'].nunique()
-        ratio = total_sales / total_expenses if total_expenses > 0 else float('inf')
-        status_display = blinking_star() if ratio >= 3 else ("⭐" if ratio > 1 else "")
-
-        avg_rating = 4.69  # Placeholder, update if you have branch rating data
-
-        st.header(f"📍 Branch Overview: {branch}")
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Sales", f"${total_sales:,.0f}")
-        col2.metric("Total Expenses", f"${total_expenses:,.0f}")
-        col3.metric("Net Income", f"${net_income:,.0f}")
-
-        col4, col5 = st.columns(2)
-        col4.metric("Avg. Customer Rating", f"{avg_rating}")
-        col5.metric("Performance Ratio", f"{ratio:.2f}x")
-
-        st.markdown(f"**Performance Status:** {status_display}", unsafe_allow_html=True)
-        st.metric("Total Employees", total_employees)
-
-        st.markdown("### 🧑‍💼 Individual Performance")
-
-        # Prepare employee-level summary for the branch (no Status column)
-        emp_summary = branch_df.groupby(['EmployeeID', 'EmployeeName', 'Position']).agg({
-            'Revenue': 'sum',
-            'Expense': 'sum',
-            'Salary': 'sum',
-            'Net Income': 'sum'
-        }).reset_index()
-
-        # Transactions count & average rating (if available) from raw data
-        trans_count = raw_branch_df.groupby('EmployeeID').size().reset_index(name='Transactions')
-        # Assuming customer rating is available in raw_branch_df with a 'CustomerRating' column
-        if 'CustomerRating' in raw_branch_df.columns:
-            cust_rating = raw_branch_df.groupby('EmployeeID')['CustomerRating'].mean().reset_index(name='Avg Customer Rating')
-            emp_summary = emp_summary.merge(cust_rating, on='EmployeeID', how='left')
+        branch_data = pivot_df[pivot_df["BranchName"] == branch_name].copy()
+        if branch_data.empty:
+            st.warning(f"No data available for branch '{branch_name}'.")
         else:
-            emp_summary['Avg Customer Rating'] = None
+            # Drop 'Status' column here if exists (you said not needed)
+            # But you want individual rows here
+            branch_data = branch_data[[
+                "EmployeeID", "EmployeeName", "Date", "Revenue", "Expense", "Salary", "Net Income"
+            ]]
 
-        emp_summary = emp_summary.merge(trans_count, on='EmployeeID', how='left')
+            # Format Date nicely
+            branch_data["Date"] = branch_data["Date"].dt.strftime('%Y-%m-%d')
 
-        # Calculate Total Expenses per employee
-        emp_summary['Total Expenses'] = emp_summary['Expense'] + emp_summary['Salary']
+            st.dataframe(branch_data.style.format({
+                "Revenue": "${:,.2f}",
+                "Expense": "${:,.2f}",
+                "Salary": "${:,.2f}",
+                "Net Income": "${:,.2f}"
+            }))
 
-        # Select and order columns as requested (without Status)
-        display_cols = ['EmployeeName', 'Position', 'Revenue', 'Total Expenses', 'Net Income', 'Avg Customer Rating', 'Transactions']
-        emp_summary_display = emp_summary.rename(columns={
-            'Revenue': 'Sales',
-            'Avg Customer Rating': 'Customer Rating',
-            'Transactions': 'Transactions'
-        })[display_cols]
-
-        st.dataframe(emp_summary_display.style.format({
-            'Sales': '${:,.0f}',
-            'Total Expenses': '${:,.0f}',
-            'Net Income': '${:,.0f}',
-            'Customer Rating': '{:.2f}',
-            'Transactions': '{:.0f}'
-        }), height=400)
-
-        st.markdown("### 📈 Visualizations")
-        st.altair_chart(financials_by_branch_chart(branch_df), use_container_width=True)
-        st.altair_chart(monthly_performance_chart(branch_df, f"📅 12-Month Performance: {branch}"), use_container_width=True)
+            # Show 12-month branch performance chart
+            st.altair_chart(monthly_performance_for_branch_chart(raw_df[raw_df["BranchName"] == branch_name], branch_name), use_container_width=True)
 
 else:
-    st.info("Please upload all three CSV files (Employees, Branches, Transactions) to proceed.")
+    st.info("Please upload Employees, Branches, and Transactions CSV files to proceed.")
