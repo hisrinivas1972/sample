@@ -303,9 +303,21 @@ if uploaded_employees and uploaded_branches and uploaded_transactions:
 
         agg_df['Net Income'] = agg_df['Revenue'] - agg_df['Expense'] - agg_df['Salary']
 
+        # Calculate performance ratio (Revenue / (Expense + Salary)), handle divide by zero
+        agg_df['Performance Ratio'] = agg_df.apply(
+            lambda row: row['Revenue'] / (row['Expense'] + row['Salary']) if (row['Expense'] + row['Salary']) > 0 else float('inf'),
+            axis=1
+        )
+
+        # Format Status as rounded 'X' times
+        agg_df['Status'] = agg_df['Performance Ratio'].apply(lambda x: f"{x:.1f}x" if x != float('inf') else "∞")
+
         # Format currency columns for display
         for col in ['Revenue', 'Expense', 'Salary', 'Net Income']:
             agg_df[col] = agg_df[col].apply(lambda x: f"${x:,.0f}")
+
+        # Drop the raw Performance Ratio column for clean display, keep Status instead
+        agg_df = agg_df.drop(columns=['Performance Ratio'])
 
         st.dataframe(agg_df.sort_values(by='Net Income', ascending=False))
 
